@@ -42,6 +42,17 @@ func TestPlacementConstructors(t *testing.T) {
 	_ = pipeline.After(pipeline.StageAuth, p)
 }
 
+func TestNewStagedPanicsOnNilTransport(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for nil transport")
+		}
+	}()
+	_ = pipeline.NewStaged(nil)
+}
+
 func TestNewStagedResolvesOrder(t *testing.T) {
 	t.Parallel()
 
