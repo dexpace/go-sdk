@@ -97,12 +97,28 @@ func TestPolicyKeepsCallerKey(t *testing.T) {
 	t.Parallel()
 
 	p := NewPolicy(Options{})
+	var captured *http.Request
+	var marked bool
+	probe := pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+		captured = req.Raw()
+		marked = pipeline.IsIdempotent(req)
+		return req.Next()
+	})
+	tr := transporterFunc(okResp)
+	pl := pipeline.New(tr, p, probe)
 	req, _ := http.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("x"))
 	req.Header.Set("Idempotency-Key", "caller-supplied")
-	got := runPolicy(t, p, req)
+	resp, err := pl.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
 
-	if key := got.Header.Get("Idempotency-Key"); key != "caller-supplied" {
+	if key := captured.Header.Get("Idempotency-Key"); key != "caller-supplied" {
 		t.Fatalf("Idempotency-Key = %q, want caller-supplied", key)
+	}
+	if !marked {
+		t.Fatal("caller-keyed request not marked idempotent")
 	}
 }
 
@@ -143,5 +159,37 @@ func TestPolicyKeyGenerationFailure(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("x"))
 	if _, err := pl.Do(req); err == nil {
 		t.Fatal("expected error from key-generation failure")
+	}
+}
+
+func TestPolicyCustomMethods(t *testing.T) {
+	t.Parallel()
+
+	p := NewPolicy(Options{Methods: []string{"PATCH"}})
+
+	patch, _ := http.NewRequest(http.MethodPatch, "https://example.test/", strings.NewReader("x"))
+	if key := runPolicy(t, p, patch).Header.Get("Idempotency-Key"); !uuidV4.MatchString(key) {
+		t.Fatalf("PATCH Idempotency-Key = %q, want a UUIDv4", key)
+	}
+
+	// POST is no longer in the configured set, so it must be left untouched.
+	post, _ := http.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("x"))
+	if key := runPolicy(t, p, post).Header.Get("Idempotency-Key"); key != "" {
+		t.Fatalf("POST Idempotency-Key = %q, want empty when only PATCH is configured", key)
+	}
+}
+
+func TestPolicyCustomHeader(t *testing.T) {
+	t.Parallel()
+
+	p := NewPolicy(Options{Header: "X-Request-ID"})
+	req, _ := http.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("x"))
+	got := runPolicy(t, p, req)
+
+	if key := got.Header.Get("X-Request-ID"); !uuidV4.MatchString(key) {
+		t.Fatalf("X-Request-ID = %q, want a UUIDv4", key)
+	}
+	if def := got.Header.Get("Idempotency-Key"); def != "" {
+		t.Fatalf("default Idempotency-Key = %q, want empty when custom header configured", def)
 	}
 }

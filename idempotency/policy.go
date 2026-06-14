@@ -43,7 +43,8 @@ const defaultHeader = "Idempotency-Key"
 // crypto/rand UUIDv4 keys.
 type Options struct {
 	// Methods lists the HTTP methods that receive a key. Nil selects ["POST"].
-	// Method names are matched case-insensitively.
+	// Method names are normalised to uppercase before matching, so "post" and
+	// http.MethodPost are equivalent.
 	Methods []string
 
 	// Header is the header name to set. Empty selects "Idempotency-Key".
@@ -82,7 +83,11 @@ func NewPolicy(opts Options) *Policy {
 	return &Policy{methods: set, header: h, newKey: newKey}
 }
 
-// Do implements pipeline.Policy.
+// Do stamps the configured header with a freshly generated key when the request
+// uses a configured method and carries no such header, then marks the request
+// idempotent so the retry policy may safely re-send it. Requests using other
+// methods pass through untouched. A key-generation failure aborts the request
+// without sending it. It implements pipeline.Policy.
 func (p *Policy) Do(req *pipeline.Request) (*http.Response, error) {
 	raw := req.Raw()
 	if _, ok := p.methods[strings.ToUpper(raw.Method)]; !ok {
