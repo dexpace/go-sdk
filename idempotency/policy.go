@@ -7,6 +7,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net/http"
+	"strings"
+
+	"github.com/dexpace/go-sdk/pipeline"
 )
 
 // newUUIDv4 returns a random RFC 4122 version-4 UUID in canonical string form.
@@ -30,4 +34,67 @@ func newUUIDv4() (string, error) {
 	buf[23] = '-'
 	hex.Encode(buf[24:36], b[10:16])
 	return string(buf[:]), nil
+}
+
+const defaultHeader = "Idempotency-Key"
+
+// Options configures the idempotency [Policy]. The zero value is valid and
+// yields the documented defaults: POST only, the "Idempotency-Key" header, and
+// crypto/rand UUIDv4 keys.
+type Options struct {
+	// Methods lists the HTTP methods that receive a key. Nil selects ["POST"].
+	// Method names are matched case-insensitively.
+	Methods []string
+
+	// Header is the header name to set. Empty selects "Idempotency-Key".
+	Header string
+
+	// NewKey generates a key. Nil selects a crypto/rand UUIDv4 generator.
+	NewKey func() (string, error)
+}
+
+// Policy stamps an idempotency-key header on matching requests. It implements
+// pipeline.Policy and is safe for concurrent use.
+type Policy struct {
+	methods map[string]struct{}
+	header  string
+	newKey  func() (string, error)
+}
+
+// NewPolicy returns an idempotency policy configured by opts.
+func NewPolicy(opts Options) *Policy {
+	methods := opts.Methods
+	if methods == nil {
+		methods = []string{http.MethodPost}
+	}
+	set := make(map[string]struct{}, len(methods))
+	for _, m := range methods {
+		set[strings.ToUpper(m)] = struct{}{}
+	}
+	h := opts.Header
+	if h == "" {
+		h = defaultHeader
+	}
+	newKey := opts.NewKey
+	if newKey == nil {
+		newKey = newUUIDv4
+	}
+	return &Policy{methods: set, header: h, newKey: newKey}
+}
+
+// Do implements pipeline.Policy.
+func (p *Policy) Do(req *pipeline.Request) (*http.Response, error) {
+	raw := req.Raw()
+	if _, ok := p.methods[strings.ToUpper(raw.Method)]; !ok {
+		return req.Next()
+	}
+	if raw.Header.Get(p.header) == "" {
+		key, err := p.newKey()
+		if err != nil {
+			return nil, err
+		}
+		raw.Header.Set(p.header, key)
+	}
+	pipeline.MarkIdempotent(req)
+	return req.Next()
 }
