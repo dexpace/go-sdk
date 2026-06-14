@@ -3,6 +3,8 @@
 
 package pipeline
 
+import "sort"
+
 // Stage names an anchor point in the standard policy order, from outermost
 // (StageClientIdentity) to innermost (StageLogging). Stages are used at assembly
 // time to place policies deterministically; the running pipeline is still a flat
@@ -41,3 +43,23 @@ func Before(s Stage, p Policy) Placement { return Placement{stage: s, offset: -1
 
 // After places p immediately inside (after) stage s.
 func After(s Stage, p Policy) Placement { return Placement{stage: s, offset: 1, policy: p} }
+
+// NewStaged resolves placements into a deterministic order and builds a
+// [Pipeline]. Placements are sorted by stage, then by offset (before, at,
+// after); placements sharing the same stage and offset keep the order in which
+// they were supplied. transport must be non-nil; passing nil panics, matching
+// [New].
+func NewStaged(transport Transporter, placements ...Placement) Pipeline {
+	sorted := make([]Placement, len(placements))
+	copy(sorted, placements)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return sortKey(sorted[i]) < sortKey(sorted[j])
+	})
+	policies := make([]Policy, len(sorted))
+	for i, pl := range sorted {
+		policies[i] = pl.policy
+	}
+	return New(transport, policies...)
+}
+
+func sortKey(p Placement) int { return int(p.stage)*4 + int(p.offset) }

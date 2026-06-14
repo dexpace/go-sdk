@@ -5,6 +5,7 @@ package pipeline_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/dexpace/go-sdk/pipeline"
@@ -39,4 +40,42 @@ func TestPlacementConstructors(t *testing.T) {
 	_ = pipeline.At(pipeline.StageRetry, p)
 	_ = pipeline.Before(pipeline.StageRetry, p)
 	_ = pipeline.After(pipeline.StageAuth, p)
+}
+
+func TestNewStagedResolvesOrder(t *testing.T) {
+	t.Parallel()
+
+	var order []string
+	mark := func(name string) pipeline.Policy {
+		return pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+			order = append(order, name)
+			return req.Next()
+		})
+	}
+	tr := transporterFunc(func(req *http.Request) (*http.Response, error) {
+		order = append(order, "transport")
+		return okResponse(req)
+	})
+
+	pl := pipeline.NewStaged(tr,
+		pipeline.At(pipeline.StageAuth, mark("auth")),
+		pipeline.At(pipeline.StageClientIdentity, mark("ua")),
+		pipeline.Before(pipeline.StageRetry, mark("before-retry")),
+		pipeline.At(pipeline.StageRetry, mark("retry")),
+		pipeline.After(pipeline.StageRetry, mark("after-retry")),
+		pipeline.At(pipeline.StageRetry, mark("retry2")),
+		pipeline.At(pipeline.StageLogging, mark("log")),
+	)
+
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := pl.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	want := []string{"ua", "before-retry", "retry", "retry2", "after-retry", "auth", "log", "transport"}
+	if strings.Join(order, ",") != strings.Join(want, ",") {
+		t.Fatalf("order = %v, want %v", order, want)
+	}
 }
