@@ -22,3 +22,22 @@ const (
 	StageDate                            // Date header
 	StageLogging                         // innermost; logs the on-the-wire request
 )
+
+// Placement pairs a [Policy] with where it belongs in stage order. Construct one
+// with [At], [Before], or [After] and pass it to [NewStaged].
+type Placement struct {
+	stage  Stage
+	offset int8 // -1 before, 0 at (pillar), +1 after
+	policy Policy
+}
+
+// At places p exactly at stage s (a "pillar"). When two placements target the
+// same stage with the same offset, insertion order is preserved; supplying At
+// for a stage already occupied therefore appends after the earlier one.
+func At(s Stage, p Policy) Placement { return Placement{stage: s, offset: 0, policy: p} }
+
+// Before places p immediately outside (before) stage s.
+func Before(s Stage, p Policy) Placement { return Placement{stage: s, offset: -1, policy: p} }
+
+// After places p immediately inside (after) stage s.
+func After(s Stage, p Policy) Placement { return Placement{stage: s, offset: 1, policy: p} }

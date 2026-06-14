@@ -4,6 +4,7 @@
 package pipeline_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/dexpace/go-sdk/pipeline"
@@ -25,4 +26,17 @@ func TestStagesAreOrdered(t *testing.T) {
 			t.Fatalf("stage %d not less than stage %d", ordered[i-1], ordered[i])
 		}
 	}
+}
+
+func TestPlacementConstructors(t *testing.T) {
+	t.Parallel()
+
+	p := pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+		return req.Next()
+	})
+	// Must compile and return non-zero placements; ordering is covered in
+	// TestNewStagedResolvesOrder.
+	_ = pipeline.At(pipeline.StageRetry, p)
+	_ = pipeline.Before(pipeline.StageRetry, p)
+	_ = pipeline.After(pipeline.StageAuth, p)
 }
