@@ -207,6 +207,32 @@ func TestRetriesKeyedPost(t *testing.T) {
 	}
 }
 
+func TestRetriesPostOn5xx(t *testing.T) {
+	t.Parallel()
+
+	var calls int
+	transport := transporterFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		code := http.StatusOK
+		if calls < 3 {
+			code = http.StatusInternalServerError
+		}
+		return statusResponse(req, code), nil
+	})
+	pl := pipeline.New(transport,
+		retry.NewPolicy(retry.Options{MaxRetries: 2, BaseDelay: 1, MaxDelay: 1}))
+	req, _ := http.NewRequest(http.MethodPost, "https://example.test/", nil)
+	resp, err := pl.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if calls != 3 { // 500, 500, then 200 — POST retried on status despite no idempotency key
+		t.Fatalf("POST 5xx attempts = %d, want 3", calls)
+	}
+}
+
 func TestNegativeMaxRetriesDisablesRetry(t *testing.T) {
 	t.Parallel()
 

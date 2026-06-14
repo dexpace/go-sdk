@@ -32,6 +32,10 @@ const (
 // closing, so a connection can be reused without buffering an unbounded body.
 const drainLimit = 4 << 10
 
+// idempotencyKeyHeader lets a request opt into transport-error retries for an
+// otherwise non-idempotent method by carrying this header directly.
+const idempotencyKeyHeader = "Idempotency-Key"
+
 // Options configures the retry [Policy]. The zero value is valid and yields the
 // documented defaults.
 type Options struct {
@@ -138,8 +142,10 @@ func (p *Policy) shouldRetry(attempt int, req *pipeline.Request, resp *http.Resp
 }
 
 // retrySafe reports whether a request may be re-sent after a transport error.
-// Safe and idempotent methods always qualify; other methods (POST, PATCH) only
-// qualify when an idempotency key makes the repeat safe.
+// Safe and idempotent methods always qualify; other methods (POST, PATCH) qualify
+// only when an idempotency key makes the repeat safe — either because a policy
+// marked the request (pipeline.IsIdempotent) or because the caller set the
+// Idempotency-Key header directly.
 func retrySafe(req *pipeline.Request) bool {
 	switch req.Raw().Method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions,
@@ -151,8 +157,6 @@ func retrySafe(req *pipeline.Request) bool {
 	}
 	return req.Raw().Header.Get(idempotencyKeyHeader) != ""
 }
-
-const idempotencyKeyHeader = "Idempotency-Key"
 
 func (p *Policy) retryableStatus(code int) bool {
 	for _, c := range p.opts.StatusCodes {
