@@ -115,16 +115,26 @@ func NewPolicy(opts Options) *Policy
   (caller-supplied keys win).
 - Generates a canonical UUIDv4 from `crypto/rand`; the 16 bytes are formatted
   in-package (zero third-party deps).
-- Marks the request retry-safe via `Request.SetValue(key, true)` using an
-  unexported key type, so the retry policy can recognise an idempotent POST.
+- Marks the request retry-safe via `pipeline.MarkIdempotent(req)`, so the retry
+  policy can recognise an idempotent POST.
 
-**`retry` package (enhanced).** Today retry retries transport errors only for
-spec-idempotent methods. Add: a request is *also* retry-safe on transport errors
-when it carries an idempotency key — either the in-band marker set by the
-idempotency policy, or a present `Idempotency-Key` header. This is the synergy
-that makes default-on idempotency pay off: safe `POST` retries. The body-replay
-guard is unaffected — a non-replayable body still blocks the retry regardless of
-the key (see Edge cases).
+**`retry` package (enhanced — also a correctness fix).** The current
+`retryableErr` retries *every* non-context transport error regardless of method,
+despite a doc comment claiming method-awareness — so today it unsafely retries
+non-idempotent POSTs. The fix introduces real method-awareness: on a transport
+error, retry only when the method is safe/idempotent (GET, HEAD, OPTIONS, TRACE,
+PUT, DELETE) **or** the request is marked idempotent. A request is marked
+idempotent when the idempotency policy ran (`pipeline.IsIdempotent`) or when a
+canonical `Idempotency-Key` header is present. This is both the correctness fix
+and the synergy that makes default-on idempotency pay off: safe `POST` retries.
+The body-replay guard is unaffected — a non-replayable body still blocks the
+retry regardless of the key (see Edge cases).
+
+**`pipeline` idempotency coordination.** To let the idempotency and retry
+policies cooperate without an import cycle or an exported magic key, `pipeline`
+gains two small functions: `MarkIdempotent(r *Request)` and
+`IsIdempotent(r *Request) bool`, backed by an unexported request value. The
+idempotency policy marks; the retry policy reads.
 
 **set-date (no package).** A one-line policy; ship it inline in the umbrella,
 exposed via `dexpace.WithDate()`. Anchored at `StageDate`; stamps the `Date`
@@ -180,8 +190,10 @@ New options: `WithDate()`, `WithoutIdempotency()`, `WithIdempotency(opts)`,
 - **Idempotency-key is sent on POST by default.** New header on the wire for
   POST requests. Harmless to servers that ignore it; disable with
   `WithoutIdempotency()`.
-- **POST may now be retried on transport errors** when it carries an idempotency
-  key (previously POST transport-error retries were always skipped).
+- **Transport-error retries are now method-aware.** POST/PATCH *without* an
+  idempotency marker are no longer retried on transport errors (previously they
+  were, unsafely); POST *with* an idempotency key now is. Safe/idempotent methods
+  are unchanged.
 
 ## Edge cases
 
