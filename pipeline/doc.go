@@ -17,4 +17,15 @@
 // are net/http types, and *http.Client satisfies [Transporter] through the thin
 // adapter in package transport. This package adds the composition seam, not a
 // replacement for net/http.
+//
+// # Stage ordering
+//
+// Most callers build a pipeline through the umbrella package's options, but the
+// ordering is expressed here. A [Stage] names an anchor point in the standard
+// policy order; [At], [Before], and [After] position a [Policy] relative to a
+// stage; [NewStaged] resolves those placements into the flat ordered list that
+// [New] runs. Resolution is stable: placements are ordered by stage, then by
+// before/at/after, and ties keep insertion order. Placing two policies At the
+// same stage runs them in insertion order (the second effectively "after" the
+// first), which is how a built-in pillar is supplemented or replaced.
 package pipeline
