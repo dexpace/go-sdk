@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/go-sdk/auth"
 	"github.com/dexpace/go-sdk/header"
+	"github.com/dexpace/go-sdk/httperr"
 	"github.com/dexpace/go-sdk/idempotency"
 	"github.com/dexpace/go-sdk/logging"
 	"github.com/dexpace/go-sdk/pipeline"
@@ -62,6 +63,10 @@ func New(opts ...Option) *Client {
 		pipeline.At(pipeline.StageRetry, retry.NewPolicy(retryOpts)),
 	}
 
+	if cfg.errorsEnabled {
+		placements = append(placements, pipeline.At(pipeline.StageErrors, errorsPolicy()))
+	}
+
 	if !cfg.noIdempotency {
 		iopts := idempotency.Options{}
 		if cfg.idempotency != nil {
@@ -102,6 +107,26 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 // embedding it in a higher-level pipeline or inspecting it in tests).
 func (c *Client) Pipeline() pipeline.Pipeline {
 	return c.pl
+}
+
+// errorsPolicy maps the final result of the chain to the typed error model: a
+// transport failure becomes a *httperr.TransportError (context errors pass
+// through unchanged), and a non-2xx response becomes a *httperr.ResponseError.
+// It is the outermost policy, so retry still operates on raw responses.
+func errorsPolicy() pipeline.Policy {
+	return pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+		resp, err := req.Next()
+		if err != nil {
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			return nil, httperr.FromError(err, req.Raw())
+		}
+		if rerr := httperr.FromResponse(resp); rerr != nil {
+			return resp, rerr
+		}
+		return resp, nil
+	})
 }
 
 // datePolicy stamps the Date header in HTTP-date format (RFC 1123 with GMT, per

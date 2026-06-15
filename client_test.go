@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	dexpace "github.com/dexpace/go-sdk"
+	"github.com/dexpace/go-sdk/httperr"
 	"github.com/dexpace/go-sdk/pipeline"
 	"github.com/dexpace/go-sdk/retry"
 )
@@ -184,5 +185,121 @@ func TestCustomPolicyPositionRelativeToRetry(t *testing.T) {
 	}
 	if inside != 3 {
 		t.Fatalf("after-retry policy ran %d times, want 3 (inside retry)", inside)
+	}
+}
+
+// statusTransport returns a fresh response with the given status code each call.
+func statusTransport(code int, calls *int) transporterFunc {
+	return func(req *http.Request) (*http.Response, error) {
+		if calls != nil {
+			*calls++
+		}
+		return &http.Response{
+			StatusCode: code,
+			Status:     http.StatusText(code),
+			Body:       http.NoBody,
+			Request:    req,
+		}, nil
+	}
+}
+
+// errTransport always fails with a transport error.
+func errTransport(err error) transporterFunc {
+	return func(*http.Request) (*http.Response, error) { return nil, err }
+}
+
+func TestErrorsOffByDefault(t *testing.T) {
+	t.Parallel()
+
+	c := dexpace.New(dexpace.WithTransport(statusTransport(http.StatusNotFound, nil)))
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do = %v, want nil error by default", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+
+	cause := errors.New("connection refused")
+	c2 := dexpace.New(
+		dexpace.WithTransport(errTransport(cause)),
+		dexpace.WithRetry(retry.Options{MaxRetries: -1}),
+	)
+	_, err2 := c2.Do(req)
+	var te *httperr.TransportError
+	if errors.As(err2, &te) {
+		t.Fatal("transport error should be raw without WithErrors()")
+	}
+	if !errors.Is(err2, cause) {
+		t.Fatalf("err = %v, want the raw cause", err2)
+	}
+}
+
+func TestWithErrorsConvertsStatusError(t *testing.T) {
+	t.Parallel()
+
+	c := dexpace.New(
+		dexpace.WithTransport(statusTransport(http.StatusNotFound, nil)),
+		dexpace.WithErrors(),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if resp != nil {
+		t.Cleanup(func() { _ = resp.Body.Close() })
+	}
+
+	var rerr *httperr.ResponseError
+	if !errors.As(err, &rerr) {
+		t.Fatalf("err = %T, want *httperr.ResponseError", err)
+	}
+	if rerr.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want 404", rerr.StatusCode)
+	}
+}
+
+func TestWithErrorsWrapsTransportError(t *testing.T) {
+	t.Parallel()
+
+	cause := errors.New("dial tcp: connection refused")
+	c := dexpace.New(
+		dexpace.WithTransport(errTransport(cause)),
+		dexpace.WithErrors(),
+		dexpace.WithRetry(retry.Options{MaxRetries: -1}),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	_, err := c.Do(req)
+
+	var te *httperr.TransportError
+	if !errors.As(err, &te) {
+		t.Fatalf("err = %T, want *httperr.TransportError", err)
+	}
+	if !errors.Is(err, cause) {
+		t.Fatal("Unwrap must reach the underlying cause")
+	}
+}
+
+func TestWithErrorsRetryStillSeesRawResponse(t *testing.T) {
+	t.Parallel()
+
+	var calls int
+	c := dexpace.New(
+		dexpace.WithTransport(statusTransport(http.StatusServiceUnavailable, &calls)),
+		dexpace.WithErrors(),
+		dexpace.WithRetry(retry.Options{MaxRetries: 2, BaseDelay: 1, MaxDelay: 1}),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if resp != nil {
+		t.Cleanup(func() { _ = resp.Body.Close() })
+	}
+
+	if calls != 3 {
+		t.Fatalf("transport calls = %d, want 3 (retry saw raw 503s)", calls)
+	}
+	var rerr *httperr.ResponseError
+	if !errors.As(err, &rerr) || rerr.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("final err = %v, want *ResponseError with 503", err)
 	}
 }
