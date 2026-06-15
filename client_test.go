@@ -4,12 +4,14 @@
 package dexpace_test
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
 
 	dexpace "github.com/dexpace/go-sdk"
 	"github.com/dexpace/go-sdk/pipeline"
+	"github.com/dexpace/go-sdk/retry"
 )
 
 type transporterFunc func(*http.Request) (*http.Response, error)
@@ -144,5 +146,43 @@ func TestWithPolicyBeforeAndAfterRun(t *testing.T) {
 
 	if len(ran) != 2 || ran[0] != "before-retry" || ran[1] != "after-auth" {
 		t.Fatalf("custom policies ran = %v, want [before-retry after-auth]", ran)
+	}
+}
+
+func TestCustomPolicyPositionRelativeToRetry(t *testing.T) {
+	t.Parallel()
+
+	var outside, inside, attempts int
+	before := pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+		outside++
+		return req.Next()
+	})
+	after := pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+		inside++
+		return req.Next()
+	})
+	failing := transporterFunc(func(*http.Request) (*http.Response, error) {
+		attempts++
+		return nil, errors.New("dial tcp: connection refused")
+	})
+
+	c := dexpace.New(
+		dexpace.WithTransport(failing),
+		dexpace.WithRetry(retry.Options{MaxRetries: 2, BaseDelay: 1, MaxDelay: 1}),
+		dexpace.WithPolicyBefore(pipeline.StageRetry, before),
+		dexpace.WithPolicyAfter(pipeline.StageRetry, after),
+	)
+	// GET so the retry policy treats transport errors as retry-safe.
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	_, _ = c.Do(req)
+
+	if attempts != 3 {
+		t.Fatalf("transport attempts = %d, want 3 (initial + 2 retries)", attempts)
+	}
+	if outside != 1 {
+		t.Fatalf("before-retry policy ran %d times, want 1 (outside retry)", outside)
+	}
+	if inside != 3 {
+		t.Fatalf("after-retry policy ran %d times, want 3 (inside retry)", inside)
 	}
 }

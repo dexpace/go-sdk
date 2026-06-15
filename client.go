@@ -28,8 +28,10 @@ type Client struct {
 //
 //	client-identity → idempotency → retry → auth → date → logging → transport
 //
-// Retry wraps the inner stages, so auth re-runs (and may refresh its token) on
-// every attempt; logging is innermost, so it records the request as sent.
+// Idempotency wraps retry, so a single key is minted once per logical call and
+// reused across attempts; retry in turn wraps auth and logging, so auth re-runs
+// (and may refresh its token) on every attempt and logging — innermost — records
+// the request as actually sent.
 // Idempotency-key stamping is on by default for POST (disable with
 // WithoutIdempotency); set-date is opt-in (WithDate). Custom policies added with
 // WithPolicies run just before the transport; use WithPolicyBefore /

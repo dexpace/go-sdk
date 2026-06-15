@@ -71,7 +71,8 @@ func WithoutIdempotency() Option {
 
 // WithIdempotency configures the idempotency-key policy (which is on by
 // default). Passing custom options also re-enables it if a prior
-// WithoutIdempotency was set.
+// WithoutIdempotency was set. Pass the zero idempotency.Options for the default
+// behaviour (POST only, the Idempotency-Key header, and UUIDv4 keys).
 func WithIdempotency(opts idempotency.Options) Option {
 	return func(c *config) {
 		c.idempotency = &opts
@@ -79,12 +80,18 @@ func WithIdempotency(opts idempotency.Options) Option {
 	}
 }
 
-// WithPolicyBefore inserts a custom policy immediately before the given stage.
+// WithPolicyBefore inserts a custom policy immediately before (outside) the given
+// stage, so it wraps that stage and everything inner to it. The stage need not
+// be occupied by a built-in policy. Multiple insertions at the same position run
+// in the order added.
 func WithPolicyBefore(stage pipeline.Stage, p pipeline.Policy) Option {
 	return func(c *config) { c.before = append(c.before, pipeline.Before(stage, p)) }
 }
 
-// WithPolicyAfter inserts a custom policy immediately after the given stage.
+// WithPolicyAfter inserts a custom policy immediately after (inside) the given
+// stage, so the named stage wraps it. The stage need not be occupied by a
+// built-in policy. Multiple insertions at the same position run in the order
+// added.
 func WithPolicyAfter(stage pipeline.Stage, p pipeline.Policy) Option {
 	return func(c *config) { c.after = append(c.after, pipeline.After(stage, p)) }
 }

@@ -117,7 +117,7 @@ terminating in a `Transporter`:
 2. **`transport`** — wraps an `*http.Client` (cloned `http.DefaultTransport`
    with larger idle-conn limits) to satisfy `Transporter`.
 3. **Policies** — `retry`, `auth`, `logging`, each a `Policy`. Order is set by
-   `dexpace.New`: `user-agent → retry → logging → auth → custom → transport`.
+   `dexpace.New`: `user-agent → idempotency → retry → auth → date → logging → custom → transport`.
 4. **Value layer** — `mediatype`, `header`, `httperr`, `pagination`: small,
    stdlib-only helpers over `net/http`.
 
