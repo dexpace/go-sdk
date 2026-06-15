@@ -68,6 +68,11 @@ with `pipeline.New(transport, policies...)` when you need something else.
 An `Idempotency-Key` is sent on POST requests by default (disable with
 `WithoutIdempotency`); `WithDate` is opt-in.
 
+By default `Client.Do` follows `net/http` semantics, where a non-2xx status is
+not an error. `WithErrors` opts into the typed error model: `Client.Do` then
+returns a `*httperr.ResponseError` for non-2xx responses and a
+`*httperr.TransportError` for transport failures. It is off by default.
+
 ## Requirements
 
 Go **1.26+**. The module targets modern idioms: generics, range-over-func
