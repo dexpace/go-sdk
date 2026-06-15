@@ -29,6 +29,9 @@ type Client struct {
 //
 //	client-identity → idempotency → retry → auth → date → logging → transport
 //
+// When WithErrors is supplied, an errors stage is prepended as the outermost
+// policy, mapping the final result to the typed error model.
+//
 // Idempotency wraps retry, so a single key is minted once per logical call and
 // reused across attempts; retry in turn wraps auth and logging, so auth re-runs
 // (and may refresh its token) on every attempt and logging — innermost — records
@@ -112,7 +115,8 @@ func (c *Client) Pipeline() pipeline.Pipeline {
 // errorsPolicy maps the final result of the chain to the typed error model: a
 // transport failure becomes a *httperr.TransportError (context errors pass
 // through unchanged), and a non-2xx response becomes a *httperr.ResponseError.
-// It is the outermost policy, so retry still operates on raw responses.
+// Callers place it at [pipeline.StageErrors], the outermost stage, so retry
+// still operates on raw responses.
 func errorsPolicy() pipeline.Policy {
 	return pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
 		resp, err := req.Next()
