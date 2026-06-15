@@ -81,7 +81,8 @@ func (c *Client) Pipeline() pipeline.Pipeline {
 	return c.pl
 }
 
-// datePolicy stamps the Date header (RFC 1123) unless the caller already set one.
+// datePolicy stamps the Date header in HTTP-date format (RFC 1123 with GMT, per
+// RFC 7231) unless the caller already set one.
 func datePolicy() pipeline.Policy {
 	return pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
 		if req.Raw().Header.Get(header.Date) == "" {

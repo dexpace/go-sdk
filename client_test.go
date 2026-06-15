@@ -57,3 +57,25 @@ func TestDateOffByDefault(t *testing.T) {
 		t.Fatal("Date header set without WithDate()")
 	}
 }
+
+func TestWithDateKeepsCallerDate(t *testing.T) {
+	t.Parallel()
+
+	const callerDate = "Sun, 01 Jan 2023 00:00:00 GMT"
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithDate(),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	req.Header.Set("Date", callerDate)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if got := captured.Header.Get("Date"); got != callerDate {
+		t.Fatalf("Date = %q, want caller value %q", got, callerDate)
+	}
+}
