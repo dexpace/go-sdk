@@ -4,8 +4,11 @@
 package dexpace_test
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -196,7 +199,7 @@ func statusTransport(code int, calls *int) transporterFunc {
 		}
 		return &http.Response{
 			StatusCode: code,
-			Status:     http.StatusText(code),
+			Status:     fmt.Sprintf("%d %s", code, http.StatusText(code)),
 			Body:       http.NoBody,
 			Request:    req,
 		}, nil
@@ -301,5 +304,27 @@ func TestWithErrorsRetryStillSeesRawResponse(t *testing.T) {
 	var rerr *httperr.ResponseError
 	if !errors.As(err, &rerr) || rerr.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("final err = %v, want *ResponseError with 503", err)
+	}
+}
+
+func TestWithErrorsPassesThroughContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	// A transport that fails with a context.Canceled-wrapped error.
+	canceled := errTransport(&url.Error{Op: "Get", URL: "https://example.test/", Err: context.Canceled})
+	c := dexpace.New(
+		dexpace.WithTransport(canceled),
+		dexpace.WithErrors(),
+		dexpace.WithRetry(retry.Options{MaxRetries: -1}),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	_, err := c.Do(req)
+
+	var te *httperr.TransportError
+	if errors.As(err, &te) {
+		t.Fatal("context cancellation must not be wrapped as *TransportError")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled to pass through", err)
 	}
 }
