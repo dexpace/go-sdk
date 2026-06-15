@@ -1,4 +1,11 @@
-# dexpace Go SDK
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/dexpace-wordmark-dark.svg">
+    <img alt="dexpace" src="docs/assets/dexpace-wordmark-light.svg" width="320">
+  </picture>
+</p>
+
+<h1 align="center">dexpace Go SDK</h1>
 
 The Go counterpart to [`dexpace/java-sdk`](https://github.com/dexpace/java-sdk)
 and [`dexpace/python-sdk`](https://github.com/dexpace/python-sdk). It is an
