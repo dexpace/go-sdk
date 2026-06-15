@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/dexpace/go-sdk/auth"
+	"github.com/dexpace/go-sdk/idempotency"
 	"github.com/dexpace/go-sdk/pipeline"
 	"github.com/dexpace/go-sdk/retry"
 )
@@ -25,6 +26,11 @@ type config struct {
 	date       bool
 	userAgent  string
 	custom     []pipeline.Policy
+
+	noIdempotency bool
+	idempotency   *idempotency.Options
+	before        []pipeline.Placement
+	after         []pipeline.Placement
 }
 
 // WithTransport sets the terminal transport. When unset, the default net/http
@@ -56,6 +62,31 @@ func WithLogging(logger *slog.Logger) Option {
 		c.logging = true
 		c.logger = logger
 	}
+}
+
+// WithoutIdempotency disables the default idempotency-key policy.
+func WithoutIdempotency() Option {
+	return func(c *config) { c.noIdempotency = true }
+}
+
+// WithIdempotency configures the idempotency-key policy (which is on by
+// default). Passing custom options also re-enables it if a prior
+// WithoutIdempotency was set.
+func WithIdempotency(opts idempotency.Options) Option {
+	return func(c *config) {
+		c.idempotency = &opts
+		c.noIdempotency = false
+	}
+}
+
+// WithPolicyBefore inserts a custom policy immediately before the given stage.
+func WithPolicyBefore(stage pipeline.Stage, p pipeline.Policy) Option {
+	return func(c *config) { c.before = append(c.before, pipeline.Before(stage, p)) }
+}
+
+// WithPolicyAfter inserts a custom policy immediately after the given stage.
+func WithPolicyAfter(stage pipeline.Stage, p pipeline.Policy) Option {
+	return func(c *config) { c.after = append(c.after, pipeline.After(stage, p)) }
 }
 
 // WithDate stamps a Date header (RFC 1123) on each request that lacks one. Off

@@ -5,9 +5,11 @@ package dexpace_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	dexpace "github.com/dexpace/go-sdk"
+	"github.com/dexpace/go-sdk/pipeline"
 )
 
 type transporterFunc func(*http.Request) (*http.Response, error)
@@ -77,5 +79,70 @@ func TestWithDateKeepsCallerDate(t *testing.T) {
 
 	if got := captured.Header.Get("Date"); got != callerDate {
 		t.Fatalf("Date = %q, want caller value %q", got, callerDate)
+	}
+}
+
+func TestIdempotencyOnByDefaultForPost(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(dexpace.WithTransport(captureTransport(&captured)))
+	req, _ := http.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("x"))
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if captured.Header.Get("Idempotency-Key") == "" {
+		t.Fatal("Idempotency-Key not set by default on POST")
+	}
+}
+
+func TestWithoutIdempotency(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithoutIdempotency(),
+	)
+	req, _ := http.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("x"))
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if captured.Header.Get("Idempotency-Key") != "" {
+		t.Fatal("Idempotency-Key set despite WithoutIdempotency()")
+	}
+}
+
+func TestWithPolicyBeforeAndAfterRun(t *testing.T) {
+	t.Parallel()
+
+	var ran []string
+	mk := func(name string) pipeline.Policy {
+		return pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+			ran = append(ran, name)
+			return req.Next()
+		})
+	}
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithPolicyBefore(pipeline.StageRetry, mk("before-retry")),
+		dexpace.WithPolicyAfter(pipeline.StageAuth, mk("after-auth")),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if len(ran) != 2 || ran[0] != "before-retry" || ran[1] != "after-auth" {
+		t.Fatalf("custom policies ran = %v, want [before-retry after-auth]", ran)
 	}
 }

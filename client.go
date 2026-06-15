@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/go-sdk/auth"
 	"github.com/dexpace/go-sdk/header"
+	"github.com/dexpace/go-sdk/idempotency"
 	"github.com/dexpace/go-sdk/logging"
 	"github.com/dexpace/go-sdk/pipeline"
 	"github.com/dexpace/go-sdk/retry"
@@ -22,15 +23,17 @@ type Client struct {
 	pl pipeline.Pipeline
 }
 
-// New assembles a Client. With no options it uses the default net/http transport
-// and a default retry policy. Options compose the standard policy stack in this
-// fixed order, outermost first:
+// New assembles a Client. Built-in policies are placed in stage order, outermost
+// first:
 //
-//	user-agent → retry → logging (if enabled) → auth (if credential set) → custom → transport
+//	client-identity → idempotency → retry → auth → date → logging → transport
 //
-// Because retry wraps the inner policies, auth re-runs (and may refresh its
-// token) on every attempt, and logging — placed inside retry — records each
-// attempt separately.
+// Retry wraps the inner stages, so auth re-runs (and may refresh its token) on
+// every attempt; logging is innermost, so it records the request as sent.
+// Idempotency-key stamping is on by default for POST (disable with
+// WithoutIdempotency); set-date is opt-in (WithDate). Custom policies added with
+// WithPolicies run just before the transport; use WithPolicyBefore /
+// WithPolicyAfter to place a policy relative to a specific stage.
 func New(opts ...Option) *Client {
 	var cfg config
 	for _, opt := range opts {
@@ -52,21 +55,39 @@ func New(opts ...Option) *Client {
 		retryOpts = *cfg.retry
 	}
 
-	policies := make([]pipeline.Policy, 0, 6+len(cfg.custom))
-	policies = append(policies, userAgentPolicy(ua))
-	if cfg.date {
-		policies = append(policies, datePolicy())
+	placements := []pipeline.Placement{
+		pipeline.At(pipeline.StageClientIdentity, userAgentPolicy(ua)),
+		pipeline.At(pipeline.StageRetry, retry.NewPolicy(retryOpts)),
 	}
-	policies = append(policies, retry.NewPolicy(retryOpts))
-	if cfg.logging {
-		policies = append(policies, logging.NewPolicy(logging.Options{Logger: cfg.logger}))
+
+	if !cfg.noIdempotency {
+		iopts := idempotency.Options{}
+		if cfg.idempotency != nil {
+			iopts = *cfg.idempotency
+		}
+		placements = append(placements,
+			pipeline.At(pipeline.StageIdempotency, idempotency.NewPolicy(iopts)))
 	}
 	if cfg.credential != nil {
-		policies = append(policies, auth.NewBearerTokenPolicy(cfg.credential, cfg.scopes...))
+		placements = append(placements,
+			pipeline.At(pipeline.StageAuth, auth.NewBearerTokenPolicy(cfg.credential, cfg.scopes...)))
 	}
-	policies = append(policies, cfg.custom...)
+	if cfg.date {
+		placements = append(placements, pipeline.At(pipeline.StageDate, datePolicy()))
+	}
+	if cfg.logging {
+		placements = append(placements,
+			pipeline.At(pipeline.StageLogging, logging.NewPolicy(logging.Options{Logger: cfg.logger})))
+	}
+	placements = append(placements, cfg.before...)
+	placements = append(placements, cfg.after...)
+	for _, p := range cfg.custom {
+		// Custom WithPolicies land innermost, just before transport — anchored
+		// after the innermost stage to preserve the previous behavior.
+		placements = append(placements, pipeline.After(pipeline.StageLogging, p))
+	}
 
-	return &Client{pl: pipeline.New(t, policies...)}
+	return &Client{pl: pipeline.NewStaged(t, placements...)}
 }
 
 // Do sends req through the pipeline and returns the response. The caller owns
