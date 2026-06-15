@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -326,5 +327,46 @@ func TestWithErrorsPassesThroughContextCancellation(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled to pass through", err)
+	}
+}
+
+// closeTrackingBody records whether Close was called.
+type closeTrackingBody struct {
+	closed *bool
+}
+
+func (closeTrackingBody) Read([]byte) (int, error) { return 0, io.EOF }
+func (b closeTrackingBody) Close() error           { *b.closed = true; return nil }
+
+func TestWithErrorsClosesBodyOnTransportError(t *testing.T) {
+	t.Parallel()
+
+	var closed bool
+	cause := errors.New("partial response then failure")
+	// A transport that returns BOTH a non-nil response and a non-nil error.
+	tr := transporterFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       closeTrackingBody{closed: &closed},
+			Request:    req,
+		}, cause
+	})
+	c := dexpace.New(
+		dexpace.WithTransport(tr),
+		dexpace.WithErrors(),
+		dexpace.WithRetry(retry.Options{MaxRetries: -1}),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+
+	if resp != nil {
+		t.Fatalf("resp = %v, want nil on transport error", resp)
+	}
+	var te *httperr.TransportError
+	if !errors.As(err, &te) {
+		t.Fatalf("err = %T, want *httperr.TransportError", err)
+	}
+	if !closed {
+		t.Fatal("response body was not closed on the transport-error path")
 	}
 }
