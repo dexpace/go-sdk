@@ -254,3 +254,22 @@ func TestNegativeMaxRetriesDisablesRetry(t *testing.T) {
 		t.Fatalf("transport calls = %d, want 1", calls)
 	}
 }
+
+func TestKeyedPostWithNonReplayableBodyIsNotRetried(t *testing.T) {
+	t.Parallel()
+
+	var calls int
+	pl := pipeline.New(countingTransport(&calls),
+		retry.NewPolicy(retry.Options{MaxRetries: 2, BaseDelay: 1, MaxDelay: 1}),
+		idempotency.NewPolicy(idempotency.Options{}))
+	// An io.NopCloser body has no GetBody, so net/http cannot replay it.
+	req, _ := http.NewRequest(http.MethodPost, "https://example.test/",
+		io.NopCloser(strings.NewReader("body")))
+	_, err := pl.Do(req)
+	if err == nil {
+		t.Fatal("expected error: a non-replayable body must block retry even with an idempotency key")
+	}
+	if calls != 1 {
+		t.Fatalf("transport calls = %d, want 1 (retry blocked by non-replayable body)", calls)
+	}
+}

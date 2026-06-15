@@ -41,6 +41,7 @@ standard library.
 | [`pipeline`](./pipeline) | The `Policy` / `Transporter` contract and the `Pipeline` that runs an ordered policy chain over an `*http.Request`. `Request.Next` advances the chain; `Request.RewindBody` replays the body for retries. |
 | [`transport`](./transport) | The default `net/http`-backed `Transporter` that terminates a pipeline. |
 | [`retry`](./retry) | Retry policy — exponential backoff with full jitter, `Retry-After`, body rewind. |
+| [`idempotency`](./idempotency) | Idempotency-key policy (default-on for POST). |
 | [`auth`](./auth) | `TokenCredential` contract and `BearerTokenPolicy` (HTTPS-only, cached). |
 | [`logging`](./logging) | Structured request/response logging via `log/slog`, with URL redaction. |
 | [`httperr`](./httperr) | `ResponseError` for non-success responses; buffers and rewinds the body. |
@@ -57,12 +58,15 @@ Reserved for upcoming work (placeholder packages today): `sse`, `webhook`,
 `dexpace.New` assembles policies outermost-first:
 
 ```
-user-agent → retry → logging → auth → custom → transport
+user-agent → idempotency → retry → auth → date → logging → custom → transport
 ```
 
 Retry wraps the inner policies, so auth re-runs (and may refresh its token) on
 every attempt and logging records each attempt. Build a custom order directly
 with `pipeline.New(transport, policies...)` when you need something else.
+
+An `Idempotency-Key` is sent on POST requests by default (disable with
+`WithoutIdempotency`); `WithDate` is opt-in.
 
 ## Requirements
 

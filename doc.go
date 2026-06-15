@@ -25,8 +25,9 @@
 //     the Pipeline that runs an ordered chain of policies.
 //   - [github.com/dexpace/go-sdk/transport] — the default net/http-backed
 //     Transporter that terminates a pipeline.
-//   - [github.com/dexpace/go-sdk/retry], [github.com/dexpace/go-sdk/auth],
-//     [github.com/dexpace/go-sdk/logging] — shipped policies.
+//   - [github.com/dexpace/go-sdk/retry], [github.com/dexpace/go-sdk/idempotency],
+//     [github.com/dexpace/go-sdk/auth], [github.com/dexpace/go-sdk/logging] —
+//     shipped policies (idempotency is default-on for POST).
 //   - [github.com/dexpace/go-sdk/httperr] — typed errors for non-success
 //     responses.
 //   - [github.com/dexpace/go-sdk/mediatype], [github.com/dexpace/go-sdk/header],
