@@ -84,3 +84,34 @@ func TestWithRedirectPolicyCustom(t *testing.T) {
 		t.Fatalf("custom policy saw %d prior requests, want 1", hops)
 	}
 }
+
+func TestWithClientBypassesRedirectOptions(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/start" {
+			http.Redirect(w, r, "/dest", http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusTeapot)
+	}))
+	t.Cleanup(srv.Close)
+
+	// A supplied client follows redirects by default. WithMaxRedirects(0) would
+	// otherwise stop following, but WithClient takes precedence and the option
+	// is ignored.
+	tr := transport.New(
+		transport.WithClient(&http.Client{}),
+		transport.WithMaxRedirects(0),
+	)
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/start", nil)
+	resp, err := tr.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if resp.StatusCode != http.StatusTeapot {
+		t.Fatalf("status = %d, want 418 (supplied client followed the redirect despite WithMaxRedirects(0))", resp.StatusCode)
+	}
+}
