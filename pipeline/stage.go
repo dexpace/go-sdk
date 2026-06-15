@@ -6,10 +6,10 @@ package pipeline
 import "slices"
 
 // Stage names an anchor point in the standard policy order, from outermost
-// (StageClientIdentity) to innermost (StageLogging). Stages are used at assembly
-// time to place policies deterministically; the running pipeline is still a flat
-// ordered list. Use [At], [Before], and [After] to position a [Policy] relative
-// to a Stage, then build with [NewStaged].
+// (StageErrors) to innermost (StageLogging). Stages are used at assembly time to
+// place policies deterministically; the running pipeline is still a flat ordered
+// list. Use [At], [Before], and [After] to position a [Policy] relative to a
+// Stage, then build with [NewStaged].
 type Stage int
 
 // The standard stages, in execution order. An earlier stage wraps the later
@@ -17,7 +17,8 @@ type Stage int
 // refresh re-runs per attempt; logging (StageLogging) is innermost, so it records
 // the request as actually sent.
 const (
-	StageClientIdentity Stage = iota + 1 // user-agent and similar identity headers
+	StageErrors         Stage = iota + 1 // outermost; maps the final result to the typed error model
+	StageClientIdentity                  // user-agent and similar identity headers
 	StageIdempotency                     // idempotency-key, minted once outside retry
 	StageRetry                           // retry pillar; wraps everything below
 	StageAuth                            // credential stamping / refresh

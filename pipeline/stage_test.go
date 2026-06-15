@@ -15,6 +15,7 @@ func TestStagesAreOrdered(t *testing.T) {
 	t.Parallel()
 
 	ordered := []pipeline.Stage{
+		pipeline.StageErrors,
 		pipeline.StageClientIdentity,
 		pipeline.StageIdempotency,
 		pipeline.StageRetry,
