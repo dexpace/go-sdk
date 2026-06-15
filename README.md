@@ -1,0 +1,87 @@
+# dexpace Go SDK
+
+The Go counterpart to [`dexpace/java-sdk`](https://github.com/dexpace/java-sdk)
+and [`dexpace/python-sdk`](https://github.com/dexpace/python-sdk). It is an
+**HTTP-client toolkit, not an HTTP client**: it supplies the request/response
+plumbing — a composable pipeline of policies (retry, auth, logging, …) — that
+sits between application code and a transport.
+
+The Go port leans on the standard library. Requests and responses are
+`net/http` types, the transport seam is satisfied by `*http.Client`, and bodies
+are plain `io.Reader`/`io.ReadCloser`. There is no reinvented HTTP model and no
+Okio-style I/O layer; the toolkit adds the composition seam on top of
+`net/http`, the way [`azcore`](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azcore)
+and the AWS SDK for Go do.
+
+```go
+client := dexpace.New(
+    dexpace.WithRetry(retry.Options{MaxRetries: 3}),
+    dexpace.WithCredential(cred, "https://api.example.com/.default"),
+    dexpace.WithLogging(nil), // nil → slog.Default()
+)
+
+req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.example.com/v1/things", nil)
+resp, err := client.Do(req)
+if err != nil {
+    return err
+}
+defer resp.Body.Close()
+if rerr := httperr.FromResponse(resp); rerr != nil {
+    return rerr // *httperr.ResponseError for any 4xx/5xx
+}
+```
+
+## Architecture
+
+Layered bottom-up; each layer is importable on its own and depends only on the
+standard library.
+
+| Package | Responsibility |
+|---|---|
+| [`pipeline`](./pipeline) | The `Policy` / `Transporter` contract and the `Pipeline` that runs an ordered policy chain over an `*http.Request`. `Request.Next` advances the chain; `Request.RewindBody` replays the body for retries. |
+| [`transport`](./transport) | The default `net/http`-backed `Transporter` that terminates a pipeline. |
+| [`retry`](./retry) | Retry policy — exponential backoff with full jitter, `Retry-After`, body rewind. |
+| [`auth`](./auth) | `TokenCredential` contract and `BearerTokenPolicy` (HTTPS-only, cached). |
+| [`logging`](./logging) | Structured request/response logging via `log/slog`, with URL redaction. |
+| [`httperr`](./httperr) | `ResponseError` for non-success responses; buffers and rewinds the body. |
+| [`mediatype`](./mediatype) | Immutable media-type value with parsing and common constants. |
+| [`header`](./header) | Canonical HTTP header-name constants. |
+| [`pagination`](./pagination) | Generic token-pagination as `iter.Seq2` range-over-func iterators. |
+| root [`dexpace`](.) | Umbrella `Client` wiring the default policy stack. |
+
+Reserved for upcoming work (placeholder packages today): `sse`, `webhook`,
+`serde`, `config`, `instrumentation`.
+
+### Pipeline order
+
+`dexpace.New` assembles policies outermost-first:
+
+```
+user-agent → retry → logging → auth → custom → transport
+```
+
+Retry wraps the inner policies, so auth re-runs (and may refresh its token) on
+every attempt and logging records each attempt. Build a custom order directly
+with `pipeline.New(transport, policies...)` when you need something else.
+
+## Requirements
+
+Go **1.26+**. The module targets modern idioms: generics, range-over-func
+iterators (`iter.Seq2`), `math/rand/v2`, `log/slog`, and the `min`/`max`
+builtins.
+
+## Development
+
+```bash
+make check   # tidy + fmt + vet + lint + test (race + coverage)
+make test    # go test -race -covermode=atomic ./...
+make lint    # golangci-lint
+```
+
+The SDK ships **zero third-party runtime dependencies**; only the standard
+library is imported by non-test code. See [`CONTRIBUTING.md`](./CONTRIBUTING.md)
+for conventions and [`CLAUDE.md`](./CLAUDE.md) for the enforced rules.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

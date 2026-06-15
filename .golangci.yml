@@ -1,0 +1,48 @@
+# Copyright (c) 2026 dexpace and Omar Aljarrah.
+# Licensed under the MIT License. See LICENSE in the repository root for details.
+#
+# golangci-lint configuration for the dexpace Go SDK.
+# The SDK leans on the standard library and ships zero third-party runtime
+# dependencies, so the lint set is strict by design.
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - bodyclose      # response bodies must be closed
+    - copyloopvar    # loop-var capture correctness
+    - errorlint      # %w / errors.Is / errors.As discipline
+    - gocritic       # opinionated correctness/style checks
+    - gosec          # security-focused checks (crypto/rand, etc.)
+    - misspell
+    - nilerr
+    - prealloc
+    - revive         # general Go style (Google/Effective-Go aligned)
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+  settings:
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/dexpace/go-sdk
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
