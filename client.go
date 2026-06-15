@@ -5,6 +5,7 @@ package dexpace
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/dexpace/go-sdk/auth"
 	"github.com/dexpace/go-sdk/header"
@@ -51,8 +52,11 @@ func New(opts ...Option) *Client {
 		retryOpts = *cfg.retry
 	}
 
-	policies := make([]pipeline.Policy, 0, 5+len(cfg.custom))
+	policies := make([]pipeline.Policy, 0, 6+len(cfg.custom))
 	policies = append(policies, userAgentPolicy(ua))
+	if cfg.date {
+		policies = append(policies, datePolicy())
+	}
 	policies = append(policies, retry.NewPolicy(retryOpts))
 	if cfg.logging {
 		policies = append(policies, logging.NewPolicy(logging.Options{Logger: cfg.logger}))
@@ -75,6 +79,16 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 // embedding it in a higher-level pipeline or inspecting it in tests).
 func (c *Client) Pipeline() pipeline.Pipeline {
 	return c.pl
+}
+
+// datePolicy stamps the Date header (RFC 1123) unless the caller already set one.
+func datePolicy() pipeline.Policy {
+	return pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+		if req.Raw().Header.Get(header.Date) == "" {
+			req.Raw().Header.Set(header.Date, time.Now().UTC().Format(http.TimeFormat))
+		}
+		return req.Next()
+	})
 }
 
 // userAgentPolicy sets the User-Agent header unless the caller already provided

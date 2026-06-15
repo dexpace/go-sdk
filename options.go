@@ -22,6 +22,7 @@ type config struct {
 	scopes     []string
 	logger     *slog.Logger
 	logging    bool
+	date       bool
 	userAgent  string
 	custom     []pipeline.Policy
 }
@@ -55,6 +56,13 @@ func WithLogging(logger *slog.Logger) Option {
 		c.logging = true
 		c.logger = logger
 	}
+}
+
+// WithDate stamps a Date header (RFC 1123) on each request that lacks one. Off
+// by default; net/http does not set a request Date and most REST APIs do not
+// need it, but some request-signing schemes require it.
+func WithDate() Option {
+	return func(c *config) { c.date = true }
 }
 
 // WithUserAgent overrides the default User-Agent ("dexpace-go-sdk/<version>").

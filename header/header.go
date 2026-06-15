@@ -19,6 +19,7 @@ const (
 	ContentEncoding = "Content-Encoding"
 	ContentLength   = "Content-Length"
 	ContentType     = "Content-Type"
+	Date            = "Date"
 	ETag            = "Etag" // canonical form of "ETag"
 	IfMatch         = "If-Match"
 	IfNoneMatch     = "If-None-Match"
