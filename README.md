@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-<h1 align="center">dexpace Go SDK</h1>
+<h1 align="center">Go SDKs Platform</h1>
 
 The Go counterpart to [`dexpace/java-sdk`](https://github.com/dexpace/java-sdk)
 and [`dexpace/python-sdk`](https://github.com/dexpace/python-sdk). It is an
