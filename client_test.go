@@ -1,0 +1,188 @@
+// Copyright (c) 2026 dexpace and Omar Aljarrah.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package dexpace_test
+
+import (
+	"errors"
+	"net/http"
+	"strings"
+	"testing"
+
+	dexpace "github.com/dexpace/go-sdk"
+	"github.com/dexpace/go-sdk/pipeline"
+	"github.com/dexpace/go-sdk/retry"
+)
+
+type transporterFunc func(*http.Request) (*http.Response, error)
+
+func (f transporterFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }
+
+func captureTransport(captured **http.Request) transporterFunc {
+	return func(r *http.Request) (*http.Response, error) {
+		*captured = r
+		return &http.Response{StatusCode: 200, Body: http.NoBody, Request: r}, nil
+	}
+}
+
+func TestWithDateStampsHeader(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithDate(),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if captured.Header.Get("Date") == "" {
+		t.Fatal("Date header not set with WithDate()")
+	}
+}
+
+func TestDateOffByDefault(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(dexpace.WithTransport(captureTransport(&captured)))
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if captured.Header.Get("Date") != "" {
+		t.Fatal("Date header set without WithDate()")
+	}
+}
+
+func TestWithDateKeepsCallerDate(t *testing.T) {
+	t.Parallel()
+
+	const callerDate = "Sun, 01 Jan 2023 00:00:00 GMT"
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithDate(),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	req.Header.Set("Date", callerDate)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if got := captured.Header.Get("Date"); got != callerDate {
+		t.Fatalf("Date = %q, want caller value %q", got, callerDate)
+	}
+}
+
+func TestIdempotencyOnByDefaultForPost(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(dexpace.WithTransport(captureTransport(&captured)))
+	req, _ := http.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("x"))
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if captured.Header.Get("Idempotency-Key") == "" {
+		t.Fatal("Idempotency-Key not set by default on POST")
+	}
+}
+
+func TestWithoutIdempotency(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithoutIdempotency(),
+	)
+	req, _ := http.NewRequest(http.MethodPost, "https://example.test/", strings.NewReader("x"))
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if captured.Header.Get("Idempotency-Key") != "" {
+		t.Fatal("Idempotency-Key set despite WithoutIdempotency()")
+	}
+}
+
+func TestWithPolicyBeforeAndAfterRun(t *testing.T) {
+	t.Parallel()
+
+	var ran []string
+	mk := func(name string) pipeline.Policy {
+		return pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+			ran = append(ran, name)
+			return req.Next()
+		})
+	}
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithPolicyBefore(pipeline.StageRetry, mk("before-retry")),
+		dexpace.WithPolicyAfter(pipeline.StageAuth, mk("after-auth")),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if len(ran) != 2 || ran[0] != "before-retry" || ran[1] != "after-auth" {
+		t.Fatalf("custom policies ran = %v, want [before-retry after-auth]", ran)
+	}
+}
+
+func TestCustomPolicyPositionRelativeToRetry(t *testing.T) {
+	t.Parallel()
+
+	var outside, inside, attempts int
+	before := pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+		outside++
+		return req.Next()
+	})
+	after := pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
+		inside++
+		return req.Next()
+	})
+	failing := transporterFunc(func(*http.Request) (*http.Response, error) {
+		attempts++
+		return nil, errors.New("dial tcp: connection refused")
+	})
+
+	c := dexpace.New(
+		dexpace.WithTransport(failing),
+		dexpace.WithRetry(retry.Options{MaxRetries: 2, BaseDelay: 1, MaxDelay: 1}),
+		dexpace.WithPolicyBefore(pipeline.StageRetry, before),
+		dexpace.WithPolicyAfter(pipeline.StageRetry, after),
+	)
+	// GET so the retry policy treats transport errors as retry-safe.
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	_, _ = c.Do(req)
+
+	if attempts != 3 {
+		t.Fatalf("transport attempts = %d, want 3 (initial + 2 retries)", attempts)
+	}
+	if outside != 1 {
+		t.Fatalf("before-retry policy ran %d times, want 1 (outside retry)", outside)
+	}
+	if inside != 3 {
+		t.Fatalf("after-retry policy ran %d times, want 3 (inside retry)", inside)
+	}
+}
