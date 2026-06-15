@@ -31,6 +31,7 @@ type config struct {
 	idempotency   *idempotency.Options
 	before        []pipeline.Placement
 	after         []pipeline.Placement
+	errorsEnabled bool
 }
 
 // WithTransport sets the terminal transport. When unset, the default net/http
@@ -101,6 +102,16 @@ func WithPolicyAfter(stage pipeline.Stage, p pipeline.Policy) Option {
 // need it, but some request-signing schemes require it.
 func WithDate() Option {
 	return func(c *config) { c.date = true }
+}
+
+// WithErrors enables the typed error model. With it, Client.Do returns a
+// *httperr.ResponseError for a non-2xx response and a *httperr.TransportError
+// for a request that never produced a response (context cancellation/deadline
+// errors are returned unchanged). Off by default: without it, Do mirrors
+// http.Client.Do — a non-2xx status is not an error, and transport failures
+// surface as raw net/http errors.
+func WithErrors() Option {
+	return func(c *config) { c.errorsEnabled = true }
 }
 
 // WithUserAgent overrides the default User-Agent ("dexpace-go-sdk/<version>").
