@@ -10,6 +10,10 @@
 // not hide net/http; it builds on it. A [Client] is a thin handle around a
 // configured pipeline.
 //
+// By default Client.Do mirrors http.Client.Do: a non-2xx status is not an error.
+// Enable the typed error model with WithErrors to receive a *httperr.ResponseError
+// for non-2xx responses and a *httperr.TransportError for transport failures.
+//
 //	client := dexpace.New(
 //		dexpace.WithRetry(retry.Options{MaxRetries: 3}),
 //		dexpace.WithCredential(cred),
