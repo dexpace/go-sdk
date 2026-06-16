@@ -96,6 +96,8 @@ wire a backend):
   via the instrumentation `Tracer` SPI and injects a W3C `traceparent` header.
 - `WithMetrics(meter)` — installs a metrics policy recording request duration and
   in-flight requests via the instrumentation `Meter` SPI.
+- `WithTokenCache(cache)` — shares a bearer-token cache (an `auth.TokenCache`, in-memory
+  by default) across clients so a cached token is reused.
 - `WithBasicAuth(username, password)` — authenticates requests with HTTP Basic auth (HTTPS-only).
 - `WithAPIKey(header, key)` — sets an API-key header on every request (HTTPS-only).
 - `WithRedactionAllowlist(params...)` — preserves the listed query-param values in
