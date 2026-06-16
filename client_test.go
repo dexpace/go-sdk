@@ -11,9 +11,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	dexpace "github.com/dexpace/go-sdk"
 	"github.com/dexpace/go-sdk/config"
@@ -605,5 +607,48 @@ func TestWithRedactionAllowlistAppliesToTracing(t *testing.T) {
 	}
 	if !strings.Contains(urlFull, "token=REDACTED") || !strings.Contains(urlFull, "page=2") {
 		t.Fatalf("url.full = %q, want token redacted and page preserved", urlFull)
+	}
+}
+
+func TestWithConfigZeroMaxRetriesDisablesRetries(t *testing.T) {
+	t.Setenv("DEXPACE_MAX_RETRIES", "0")
+
+	var calls int
+	c := dexpace.New(
+		dexpace.WithTransport(statusTransport(http.StatusServiceUnavailable, &calls)),
+		dexpace.WithConfig(config.New()),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if calls != 1 {
+		t.Fatalf("transport calls = %d, want 1 (retries disabled by env)", calls)
+	}
+}
+
+func TestWithConfigAppliesHTTPTimeout(t *testing.T) {
+	t.Setenv("DEXPACE_HTTP_TIMEOUT", "30ms")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(300 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	// No WithTransport: the default transport is built, so the config timeout applies.
+	// Disable retries so the timeout error surfaces promptly.
+	c := dexpace.New(
+		dexpace.WithConfig(config.New()),
+		dexpace.WithRetry(retry.Options{MaxRetries: -1}),
+	)
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	resp, err := c.Do(req)
+	if err == nil {
+		_ = resp.Body.Close()
+		t.Fatal("expected a timeout error from the 30ms DEXPACE_HTTP_TIMEOUT")
 	}
 }

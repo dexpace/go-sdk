@@ -6,7 +6,8 @@ package config
 // Well-known environment-variable keys the SDK consults. Callers may use any key
 // with the getters; these are the ones dexpace.WithConfig reads.
 const (
-	// EnvMaxRetries is the retry count after the initial attempt (int).
+	// EnvMaxRetries is the retry count after the initial attempt (int). A value of
+	// 0 or negative disables retries; absent leaves the SDK default in place.
 	EnvMaxRetries = "DEXPACE_MAX_RETRIES"
 	// EnvRetryBaseDelay is the first retry backoff interval (duration, e.g. "800ms").
 	EnvRetryBaseDelay = "DEXPACE_RETRY_BASE_DELAY"

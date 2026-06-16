@@ -5,6 +5,7 @@ package dexpace
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/dexpace/go-sdk/auth"
@@ -45,6 +46,9 @@ type Client struct {
 // WithoutIdempotency); set-date is opt-in (WithDate). Custom policies added with
 // WithPolicies run just before the transport; use WithPolicyBefore /
 // WithPolicyAfter to place a policy relative to a specific stage.
+//
+// Pass WithConfig to fill any unset defaults (User-Agent, retry settings,
+// transport timeout) from DEXPACE_* environment variables.
 func New(opts ...Option) *Client {
 	var cfg config
 	for _, opt := range opts {
@@ -76,8 +80,16 @@ func New(opts ...Option) *Client {
 		retryOpts = *cfg.retry
 	case cfg.cfgSource != nil:
 		retryOpts = retry.Options{
-			MaxRetries: cfg.cfgSource.GetInt(cfgpkg.EnvMaxRetries, 0),
-			BaseDelay:  cfg.cfgSource.GetDuration(cfgpkg.EnvRetryBaseDelay, 0),
+			BaseDelay: cfg.cfgSource.GetDuration(cfgpkg.EnvRetryBaseDelay, 0),
+		}
+		if v, ok := cfg.cfgSource.Lookup(cfgpkg.EnvMaxRetries); ok {
+			if n, err := strconv.Atoi(v); err == nil {
+				if n <= 0 {
+					retryOpts.MaxRetries = -1 // explicit 0 or negative disables retries
+				} else {
+					retryOpts.MaxRetries = n
+				}
+			}
 		}
 	}
 

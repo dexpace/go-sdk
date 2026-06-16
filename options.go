@@ -139,8 +139,9 @@ func WithMetrics(meter instrumentation.Meter) Option {
 // WithConfig supplies client defaults from cfg for any setting the caller did not
 // set explicitly: the User-Agent (DEXPACE_USER_AGENT), retry count and base delay
 // (DEXPACE_MAX_RETRIES, DEXPACE_RETRY_BASE_DELAY), and the default-transport
-// timeout (DEXPACE_HTTP_TIMEOUT). Explicit options always win, regardless of
-// option order. A nil cfg is a no-op.
+// timeout (DEXPACE_HTTP_TIMEOUT, applied only when no transport is supplied via
+// WithTransport). Explicit options always win, regardless of option order. A nil
+// cfg is a no-op.
 func WithConfig(cfg *cfgpkg.Config) Option {
 	return func(c *config) { c.cfgSource = cfg }
 }
