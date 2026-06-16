@@ -7,12 +7,14 @@ package httperr
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/dexpace/go-sdk/redact"
+	"github.com/dexpace/go-sdk/serde"
 )
 
 // maxErrorBodyBytes caps how much of an error response body is buffered for
@@ -63,6 +65,17 @@ func (e *ResponseError) statusText() string {
 
 // Body returns the buffered response body, truncated to an internal cap.
 func (e *ResponseError) Body() []byte { return e.body }
+
+// DecodeInto unmarshals the buffered error-response body into v as JSON, using
+// the SDK's default serde. It returns an error when the body is empty or cannot
+// be decoded. v must be a non-nil pointer. The body is the one captured by
+// FromResponse, truncated to the internal cap.
+func (e *ResponseError) DecodeInto(v any) error {
+	if len(e.body) == 0 {
+		return errors.New("httperr: response has no body to decode")
+	}
+	return serde.JSON.Unmarshal(e.body, v)
+}
 
 // FromResponse builds a [ResponseError] from resp, buffering and rewinding its
 // body so the caller may still read resp.Body. It returns nil when resp is nil

@@ -97,3 +97,49 @@ func TestResponseErrorRedactsQuery(t *testing.T) {
 		t.Fatalf("URL %q should show api_key=REDACTED", rerr.URL)
 	}
 }
+
+func TestResponseErrorDecodeInto(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader(`{"code":"bad_request","message":"nope"}`)),
+		Request: &http.Request{
+			Method: http.MethodGet,
+			URL:    &url.URL{Scheme: "https", Host: "api.example.test", Path: "/things"},
+		},
+	}
+	rerr := httperr.FromResponse(resp)
+	if rerr == nil {
+		t.Fatal("expected a ResponseError")
+	}
+
+	var body struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := rerr.DecodeInto(&body); err != nil {
+		t.Fatalf("DecodeInto: %v", err)
+	}
+	if body.Code != "bad_request" || body.Message != "nope" {
+		t.Fatalf("decoded = %+v, want code=bad_request message=nope", body)
+	}
+}
+
+func TestResponseErrorDecodeIntoEmptyBody(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusInternalServerError,
+		Body:       http.NoBody,
+		Request:    &http.Request{Method: http.MethodGet, URL: &url.URL{Scheme: "https", Host: "x"}},
+	}
+	rerr := httperr.FromResponse(resp)
+	if rerr == nil {
+		t.Fatal("expected a ResponseError")
+	}
+	var v map[string]any
+	if err := rerr.DecodeInto(&v); err == nil {
+		t.Fatal("expected an error decoding an empty body")
+	}
+}
