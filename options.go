@@ -135,7 +135,7 @@ func WithMetrics(meter instrumentation.Meter) Option {
 
 // WithRedactionAllowlist preserves the values of the named query parameters in
 // redacted URLs (logs and traces); all other query values are redacted. Applies
-// to the logging, tracing, and metrics policies.
+// to the logging and tracing policies.
 func WithRedactionAllowlist(params ...string) Option {
 	return func(c *config) { c.redactAllow = params }
 }

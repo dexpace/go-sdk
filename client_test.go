@@ -4,10 +4,12 @@
 package dexpace_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -436,6 +438,9 @@ func TestWithMetricsInstallsPolicy(t *testing.T) {
 func TestObservabilityOffByDefault(t *testing.T) {
 	t.Parallel()
 
+	tr := &spyTracer{}
+	m := &spyMeter{}
+	// Note: the spies are created but NOT registered via WithTracing/WithMetrics.
 	c := dexpace.New(dexpace.WithTransport(statusTransport(http.StatusOK, nil)))
 	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
 	resp, err := c.Do(req)
@@ -443,4 +448,40 @@ func TestObservabilityOffByDefault(t *testing.T) {
 		t.Fatalf("Do: %v", err)
 	}
 	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if tr.started {
+		t.Fatal("tracing policy ran without WithTracing")
+	}
+	if m.recorded {
+		t.Fatal("metrics policy ran without WithMetrics")
+	}
+}
+
+func TestWithRedactionAllowlistAppliesToLogging(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	c := dexpace.New(
+		dexpace.WithTransport(statusTransport(http.StatusOK, nil)),
+		dexpace.WithLogging(logger),
+		dexpace.WithRedactionAllowlist("page"),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/x?token=secret&page=2", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	out := buf.String()
+	if strings.Contains(out, "secret") {
+		t.Fatalf("log leaked the query secret: %s", out)
+	}
+	if !strings.Contains(out, "token=REDACTED") {
+		t.Fatalf("log should redact token: %s", out)
+	}
+	if !strings.Contains(out, "page=2") {
+		t.Fatalf("allowlisted page should be preserved: %s", out)
+	}
 }
