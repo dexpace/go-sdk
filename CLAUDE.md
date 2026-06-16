@@ -90,6 +90,7 @@ go-sdk/
 ├── mediatype/                 # immutable MediaType + constants
 ├── header/                    # canonical header-name constants
 ├── pagination/                # generic iter.Seq2 Pager
+├── conditions/                # ETag, Range, Conditions value types
 ├── redact/                    # default-deny URL redactor (userinfo + query values)
 ├── instrumentation/           # tracing + metrics SPIs, no-op defaults, policies
 ├── config/                    # layered override→env→default settings

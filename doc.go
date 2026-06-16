@@ -49,6 +49,9 @@
 //   - [github.com/dexpace/go-sdk/mediatype], [github.com/dexpace/go-sdk/header],
 //     [github.com/dexpace/go-sdk/pagination] — HTTP value helpers.
 //
+// The conditions package provides value types for conditional and range requests
+// (ETag, Range, Conditions) that stamp the appropriate headers on a request.
+//
 // The serde package provides a serialization seam (Marshaler/Unmarshaler with a
 // JSON default) and Tristate for JSON PATCH payloads; httperr.ResponseError.DecodeInto
 // decodes an error body into a typed value.
