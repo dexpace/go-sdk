@@ -11,8 +11,10 @@ import (
 	"github.com/dexpace/go-sdk/header"
 	"github.com/dexpace/go-sdk/httperr"
 	"github.com/dexpace/go-sdk/idempotency"
+	"github.com/dexpace/go-sdk/instrumentation"
 	"github.com/dexpace/go-sdk/logging"
 	"github.com/dexpace/go-sdk/pipeline"
+	"github.com/dexpace/go-sdk/redact"
 	"github.com/dexpace/go-sdk/retry"
 	"github.com/dexpace/go-sdk/transport"
 )
@@ -61,6 +63,11 @@ func New(opts ...Option) *Client {
 		retryOpts = *cfg.retry
 	}
 
+	redactor := redact.Default
+	if len(cfg.redactAllow) > 0 {
+		redactor = redact.New(cfg.redactAllow...)
+	}
+
 	placements := []pipeline.Placement{
 		pipeline.At(pipeline.StageClientIdentity, userAgentPolicy(ua)),
 		pipeline.At(pipeline.StageRetry, retry.NewPolicy(retryOpts)),
@@ -87,7 +94,15 @@ func New(opts ...Option) *Client {
 	}
 	if cfg.logging {
 		placements = append(placements,
-			pipeline.At(pipeline.StageLogging, logging.NewPolicy(logging.Options{Logger: cfg.logger})))
+			pipeline.At(pipeline.StageLogging, logging.NewPolicy(logging.Options{Logger: cfg.logger, Redactor: redactor})))
+	}
+	if cfg.tracer != nil {
+		placements = append(placements,
+			pipeline.At(pipeline.StageTracing, instrumentation.NewTracingPolicy(cfg.tracer, redactor)))
+	}
+	if cfg.meter != nil {
+		placements = append(placements,
+			pipeline.At(pipeline.StageMetrics, instrumentation.NewMetricsPolicy(cfg.meter)))
 	}
 	placements = append(placements, cfg.before...)
 	placements = append(placements, cfg.after...)
