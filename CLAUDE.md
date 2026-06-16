@@ -85,7 +85,7 @@ go-sdk/
 ├── transport/                 # default net/http Transporter
 ├── retry/                     # retry policy (backoff + jitter + Retry-After)
 ├── idempotency/               # idempotency-key policy (default-on for POST)
-├── auth/                      # TokenCredential, BearerTokenPolicy, StaticToken
+├── auth/                      # TokenCredential, BearerTokenPolicy, StaticToken, Digest (RFC 7616)
 ├── logging/                   # slog request/response policy
 ├── httperr/                   # ResponseError + FromResponse
 ├── mediatype/                 # immutable MediaType + constants
@@ -137,9 +137,9 @@ terminating in a `Transporter`:
   streaming body (`io.Reader` with no `GetBody`) is **not** replayable — rewind
   returns an error and retries fail. Buffer such bodies before sending.
 - **The credential policies are HTTPS-only.** `BearerTokenPolicy`,
-  `BasicAuthPolicy`, and `APIKeyPolicy` all return `auth.ErrInsecureTransport`
-  for a non-`https` URL rather than leaking a credential. Tests must use
-  `https://` URLs (a stub transporter never dials).
+  `BasicAuthPolicy`, `APIKeyPolicy`, and `DigestAuthPolicy` all return
+  `auth.ErrInsecureTransport` for a non-`https` URL rather than leaking a
+  credential. Tests must use `https://` URLs (a stub transporter never dials).
 - **Policy order changes semantics.** Retry is outside auth, so a 401-triggered
   token refresh requires the auth policy to be inside retry (it is, by default).
   Moving logging outside retry collapses per-attempt logs into one.

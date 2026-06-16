@@ -6,6 +6,8 @@ package dexpace_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -669,6 +671,68 @@ func TestWithAPIKey(t *testing.T) {
 
 	if got := captured.Header.Get("X-API-Key"); got != "secret-key" {
 		t.Fatalf("X-API-Key = %q, want secret-key", got)
+	}
+}
+
+func TestWithDigestAuth(t *testing.T) {
+	t.Parallel()
+
+	const (
+		user  = "u"
+		pass  = "pw"
+		realm = "test"
+		nonce = "abc123"
+	)
+
+	// sha256 helper for the server-side recomputation of the RFC 7616 response.
+	sum := func(s string) string {
+		h := sha256.Sum256([]byte(s))
+		return hex.EncodeToString(h[:])
+	}
+	param := func(hdr, key string) string {
+		for _, raw := range strings.Split(strings.TrimPrefix(hdr, "Digest "), ",") {
+			k, v, ok := strings.Cut(strings.TrimSpace(raw), "=")
+			if ok && strings.EqualFold(k, key) {
+				return strings.Trim(v, `"`)
+			}
+		}
+		return ""
+	}
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authz := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authz, "Digest ") {
+			w.Header().Set("WWW-Authenticate",
+				fmt.Sprintf(`Digest realm=%q, qop="auth", nonce=%q, algorithm=SHA-256`, realm, nonce))
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		ha1 := sum(user + ":" + realm + ":" + pass)
+		ha2 := sum(r.Method + ":" + param(authz, "uri"))
+		want := sum(strings.Join([]string{ha1, nonce, param(authz, "nc"), param(authz, "cnonce"), "auth", ha2}, ":"))
+		if param(authz, "response") != want {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "ok")
+	}))
+	t.Cleanup(srv.Close)
+
+	c := dexpace.New(
+		dexpace.WithTransport(srv.Client()),
+		dexpace.WithDigestAuth(user, pass),
+		dexpace.WithoutIdempotency(),
+	)
+	req, _ := http.NewRequest(http.MethodGet, srv.URL+"/resource", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 after Digest challenge", resp.StatusCode)
 	}
 }
 

@@ -20,7 +20,8 @@
 // which query-param values survive redaction in logs and traces.
 //
 // Beyond bearer tokens (WithCredential), WithBasicAuth and WithAPIKey authenticate
-// requests with HTTP Basic auth or an API-key header; both require HTTPS.
+// requests with HTTP Basic auth or an API-key header, and WithDigestAuth performs
+// HTTP Digest Access Authentication (RFC 7616); all require HTTPS.
 //
 // WithTokenCache shares a bearer-token cache across clients (auth.TokenCache, with
 // an in-memory default).

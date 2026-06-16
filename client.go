@@ -131,6 +131,9 @@ func New(opts ...Option) *Client {
 	case cfg.apiKey.set:
 		placements = append(placements,
 			pipeline.At(pipeline.StageAuth, auth.NewAPIKeyPolicy(cfg.apiKey.header, cfg.apiKey.key)))
+	case cfg.digestAuth != nil:
+		placements = append(placements,
+			pipeline.At(pipeline.StageAuth, auth.NewDigestAuthPolicy(*cfg.digestAuth)))
 	}
 	if cfg.date {
 		placements = append(placements, pipeline.At(pipeline.StageDate, datePolicy()))
