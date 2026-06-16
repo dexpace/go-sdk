@@ -166,6 +166,28 @@ func TestTracingPolicyNoTraceparentWhenZero(t *testing.T) {
 	}
 }
 
+func TestTracingPolicySetsMethodAndHostWithoutPort(t *testing.T) {
+	t.Parallel()
+
+	span := &fakeSpan{}
+	tr := &fakeTracer{span: span}
+	pl := pipeline.New(transporterFunc(okResp), instrumentation.NewTracingPolicy(tr, nil))
+
+	req, _ := http.NewRequest(http.MethodPost, "https://api.example.test:8443/x", nil)
+	resp, err := pl.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if !hasAttr(span.attrs, "http.request.method", http.MethodPost) {
+		t.Fatalf("http.request.method attribute missing or wrong: %v", span.attrs)
+	}
+	if !hasAttr(span.attrs, "server.address", "api.example.test") {
+		t.Fatalf("server.address should be host without port: %v", span.attrs)
+	}
+}
+
 func hasAttr(attrs []instrumentation.Attr, key string, value any) bool {
 	for _, a := range attrs {
 		if a.Key == key && a.Value == value {

@@ -56,7 +56,7 @@ func hostOf(req *http.Request) string {
 	if req.URL == nil {
 		return ""
 	}
-	return req.URL.Host
+	return req.URL.Hostname()
 }
 
 // injectTraceparent sets a W3C traceparent header derived from sc when sc is
