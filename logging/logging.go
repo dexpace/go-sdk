@@ -9,10 +9,10 @@ package logging
 import (
 	"log/slog"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/dexpace/go-sdk/pipeline"
+	"github.com/dexpace/go-sdk/redact"
 )
 
 // Options configures the logging [Policy].
@@ -23,6 +23,8 @@ type Options struct {
 	// (slog.LevelInfo) is used when unset. Failures are always logged at
 	// slog.LevelError.
 	Level slog.Level
+	// Redactor renders URLs for the log records. When nil, redact.Default is used.
+	Redactor *redact.Redactor
 }
 
 // Policy logs each request as it passes through the pipeline and the matching
@@ -32,8 +34,9 @@ type Options struct {
 // Place it where the granularity you want lives: below a retry policy it logs
 // every attempt; above one it logs a single operation spanning all retries.
 type Policy struct {
-	logger *slog.Logger
-	level  slog.Level
+	logger   *slog.Logger
+	level    slog.Level
+	redactor *redact.Redactor
 }
 
 // NewPolicy returns a logging policy configured by opts.
@@ -42,14 +45,18 @@ func NewPolicy(opts Options) *Policy {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Policy{logger: logger, level: opts.Level}
+	r := opts.Redactor
+	if r == nil {
+		r = redact.Default
+	}
+	return &Policy{logger: logger, level: opts.Level, redactor: r}
 }
 
 // Do implements pipeline.Policy.
 func (p *Policy) Do(req *pipeline.Request) (*http.Response, error) {
 	raw := req.Raw()
 	ctx := raw.Context()
-	target := redact(raw.URL)
+	target := p.redactor.URL(raw.URL)
 	start := time.Now()
 
 	p.logger.LogAttrs(ctx, p.level, "http request",
@@ -77,11 +84,4 @@ func (p *Policy) Do(req *pipeline.Request) (*http.Response, error) {
 		slog.Duration("elapsed", elapsed),
 	)
 	return resp, nil
-}
-
-func redact(u *url.URL) string {
-	if u == nil {
-		return ""
-	}
-	return u.Redacted()
 }

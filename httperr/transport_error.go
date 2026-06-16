@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+
+	"github.com/dexpace/go-sdk/redact"
 )
 
 // TransportError reports that a request never produced a response — for example
@@ -59,7 +61,7 @@ func FromError(err error, req *http.Request) error {
 	if req != nil {
 		te.Method = req.Method
 		if req.URL != nil {
-			te.URL = req.URL.Redacted()
+			te.URL = redact.Default.URL(req.URL)
 		}
 	}
 	return te
