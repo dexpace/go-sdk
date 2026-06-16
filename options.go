@@ -29,6 +29,7 @@ type config struct {
 	retry      *retry.Options
 	credential auth.TokenCredential
 	scopes     []string
+	tokenCache auth.TokenCache
 	basicAuth  *auth.BasicCredential
 	apiKey     apiKeyConfig
 	logger     *slog.Logger
@@ -70,6 +71,13 @@ func WithCredential(cred auth.TokenCredential, scopes ...string) Option {
 		c.credential = cred
 		c.scopes = scopes
 	}
+}
+
+// WithTokenCache shares cache across the bearer-token policy installed by
+// WithCredential, so multiple clients can reuse cached tokens. A nil cache or no
+// credential means the default per-client in-memory cache is used.
+func WithTokenCache(cache auth.TokenCache) Option {
+	return func(c *config) { c.tokenCache = cache }
 }
 
 // WithBasicAuth authenticates requests with HTTP Basic auth. Like all credential

@@ -119,8 +119,12 @@ func New(opts ...Option) *Client {
 	}
 	switch {
 	case cfg.credential != nil:
+		cache := cfg.tokenCache
+		if cache == nil {
+			cache = auth.NewInMemoryTokenCache()
+		}
 		placements = append(placements,
-			pipeline.At(pipeline.StageAuth, auth.NewBearerTokenPolicy(cfg.credential, cfg.scopes...)))
+			pipeline.At(pipeline.StageAuth, auth.NewBearerTokenPolicyWithCache(cfg.credential, cache, cfg.scopes...)))
 	case cfg.basicAuth != nil:
 		placements = append(placements,
 			pipeline.At(pipeline.StageAuth, auth.NewBasicAuthPolicy(*cfg.basicAuth)))
