@@ -84,6 +84,7 @@ go-sdk/
 ├── pipeline/                  # Policy, PolicyFunc, Transporter, Request, Pipeline
 ├── transport/                 # default net/http Transporter
 ├── retry/                     # retry policy (backoff + jitter + Retry-After)
+├── idempotency/               # idempotency-key policy (default-on for POST)
 ├── auth/                      # TokenCredential, BearerTokenPolicy, StaticToken
 ├── logging/                   # slog request/response policy
 ├── httperr/                   # ResponseError + FromResponse
@@ -125,7 +126,7 @@ terminating in a `Transporter`:
 2. **`transport`** — wraps an `*http.Client` (cloned `http.DefaultTransport`
    with larger idle-conn limits) to satisfy `Transporter`.
 3. **Policies** — `retry`, `auth`, `logging`, each a `Policy`. Order is set by
-   `dexpace.New`: `user-agent → idempotency → retry → auth → date → [tracing] → [metrics] → logging → custom → transport`.
+   `dexpace.New`: `[errors] → user-agent → idempotency → retry → auth → [date] → [tracing] → [metrics] → logging → custom → transport`.
 4. **Value layer** — `mediatype`, `header`, `httperr`, `pagination`: small,
    stdlib-only helpers over `net/http`.
 
@@ -135,9 +136,10 @@ terminating in a `Transporter`:
   automatically for `bytes.Reader`/`bytes.Buffer`/`strings.Reader` bodies. A
   streaming body (`io.Reader` with no `GetBody`) is **not** replayable — rewind
   returns an error and retries fail. Buffer such bodies before sending.
-- **`BearerTokenPolicy` is HTTPS-only.** It returns `auth.ErrInsecureTransport`
-  for a non-`https` URL rather than leaking a token. Tests must use `https://`
-  URLs (a stub transporter never dials).
+- **The credential policies are HTTPS-only.** `BearerTokenPolicy`,
+  `BasicAuthPolicy`, and `APIKeyPolicy` all return `auth.ErrInsecureTransport`
+  for a non-`https` URL rather than leaking a credential. Tests must use
+  `https://` URLs (a stub transporter never dials).
 - **Policy order changes semantics.** Retry is outside auth, so a 401-triggered
   token refresh requires the auth policy to be inside retry (it is, by default).
   Moving logging outside retry collapses per-attempt logs into one.

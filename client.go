@@ -31,7 +31,7 @@ type Client struct {
 // New assembles a Client. Built-in policies are placed in stage order, outermost
 // first:
 //
-//	client-identity → idempotency → retry → auth → date → [tracing] → [metrics] → logging → transport
+//	[errors] → client-identity → idempotency → retry → auth → [date] → [tracing] → [metrics] → logging → transport
 //
 // When WithErrors is supplied, an errors stage is prepended as the outermost
 // policy, mapping the final result to the typed error model.

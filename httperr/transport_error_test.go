@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/dexpace/go-sdk/httperr"
@@ -68,6 +69,35 @@ func TestFromErrorWrapsTransportFailure(t *testing.T) {
 	}
 	if !errors.Is(got, cause) {
 		t.Fatal("Unwrap must reach the underlying cause")
+	}
+}
+
+func TestTransportErrorDoesNotLeakURLInMessage(t *testing.T) {
+	t.Parallel()
+
+	// net/http surfaces a *url.Error whose Error() embeds the full raw URL,
+	// including query secrets. TransportError.Error() must not reproduce it.
+	cause := &url.Error{
+		Op:  "Get",
+		URL: "https://api.example.test/things?token=SECRET",
+		Err: errors.New("dial tcp: connection refused"),
+	}
+	req := &http.Request{
+		Method: http.MethodGet,
+		URL:    &url.URL{Scheme: "https", Host: "api.example.test", Path: "/things", RawQuery: "token=SECRET"},
+	}
+	te := httperr.FromError(cause, req)
+
+	msg := te.Error()
+	if strings.Contains(msg, "SECRET") {
+		t.Fatalf("Error() leaked the query secret: %q", msg)
+	}
+	if !strings.Contains(msg, "connection refused") {
+		t.Fatalf("Error() should include the underlying cause: %q", msg)
+	}
+	// Unwrap must remain lossless: the original cause is still reachable.
+	if !errors.Is(te, cause) {
+		t.Fatal("Unwrap must still reach the original *url.Error cause")
 	}
 }
 

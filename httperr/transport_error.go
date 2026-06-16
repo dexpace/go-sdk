@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 
 	"github.com/dexpace/go-sdk/redact"
 )
@@ -28,12 +29,20 @@ type TransportError struct {
 	Err error
 }
 
-// Error implements error.
+// Error implements error. When the underlying cause is a *url.Error (as produced
+// by net/http), its message — which embeds the full, unredacted URL — is replaced
+// by the inner cause, so a query secret in the URL never reaches the error string.
+// The redacted URL is reported via the Method/URL fields instead.
 func (e *TransportError) Error() string {
-	if e.URL == "" {
-		return fmt.Sprintf("transport error: %v", e.Err)
+	cause := e.Err
+	var ue *url.Error
+	if errors.As(e.Err, &ue) {
+		cause = ue.Err
 	}
-	return fmt.Sprintf("transport error: %s %s: %v", e.Method, e.URL, e.Err)
+	if e.URL == "" {
+		return fmt.Sprintf("transport error: %v", cause)
+	}
+	return fmt.Sprintf("transport error: %s %s: %v", e.Method, e.URL, cause)
 }
 
 // Unwrap returns the underlying cause so errors.Is/As reach through it.
