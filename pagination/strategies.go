@@ -13,7 +13,8 @@ import (
 
 // NewPageNumber returns a Pager that fetches sequentially numbered pages starting
 // at startPage, advancing until fetch returns a page with no items. fetch is
-// called with the page number and returns that page's items.
+// called with the page number and returns that page's items. Use [WithMaxPages]
+// to bound iteration against APIs that may never return an empty page.
 func NewPageNumber[T any](startPage int, fetch func(ctx context.Context, page int) ([]T, error), opts ...Option) *Pager[T] {
 	tokenFetch := func(ctx context.Context, token string) (Page[T], error) {
 		page := startPage
@@ -98,6 +99,8 @@ func splitLinkEntries(value string) []string {
 func parseLinkEntry(entry string) (url, rel string) {
 	entry = strings.TrimSpace(entry)
 	open := strings.IndexByte(entry, '<')
+	// IndexByte finds the first '>'. RFC 8288 requires URI-References to
+	// percent-encode '>', so a literal '>' inside the URL is malformed input.
 	closeIdx := strings.IndexByte(entry, '>')
 	if open != 0 || closeIdx < 0 {
 		return "", ""

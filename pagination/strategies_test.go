@@ -6,6 +6,7 @@ package pagination_test
 import (
 	"context"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/dexpace/go-sdk/pagination"
@@ -42,13 +43,23 @@ func TestNewPageNumber(t *testing.T) {
 	got := collect(t, pager.Items(context.Background()))
 
 	want := []int{1, 2, 3, 4, 5}
-	if len(got) != len(want) {
+	if !slices.Equal(got, want) {
 		t.Fatalf("items = %v, want %v", got, want)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("items = %v, want %v", got, want)
-		}
+}
+
+func TestNewPageNumberWithMaxPages(t *testing.T) {
+	t.Parallel()
+
+	// fetch never returns an empty page; WithMaxPages must stop iteration.
+	fetch := func(_ context.Context, page int) ([]int, error) {
+		return []int{page}, nil
+	}
+	pager := pagination.NewPageNumber(1, fetch, pagination.WithMaxPages(2))
+	got := collect(t, pager.Items(context.Background()))
+
+	if !slices.Equal(got, []int{1, 2}) {
+		t.Fatalf("items = %v, want [1 2] (capped at 2 pages)", got)
 	}
 }
 
@@ -77,13 +88,8 @@ func TestNewLinkHeader(t *testing.T) {
 	got := collect(t, pager.Items(context.Background()))
 
 	want := []int{1, 2, 3}
-	if len(got) != len(want) {
+	if !slices.Equal(got, want) {
 		t.Fatalf("items = %v, want %v", got, want)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("items = %v, want %v", got, want)
-		}
 	}
 }
 
@@ -100,6 +106,7 @@ func TestNextLink(t *testing.T) {
 		{"unquoted rel", `<https://api/n>; rel=next`, "https://api/n"},
 		{"multiple rels", `<https://api/n>; rel="prev next"`, "https://api/n"},
 		{"comma in url", `<https://api/x?a=1,2>; rel="next"`, "https://api/x?a=1,2"},
+		{"bad entry then next", `JUNK, <https://api/n>; rel="next"`, "https://api/n"},
 		{"no next", `<https://api/p>; rel="prev"`, ""},
 		{"empty", "", ""},
 	}
