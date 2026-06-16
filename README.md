@@ -61,9 +61,8 @@ standard library.
 | [`config`](./config) | Layered override → environment → default settings resolver; non-failing typed getters. |
 | [`serde`](./serde) | Serialization seam (Marshaler/Unmarshaler) with a JSON default, plus Tristate for PATCH payloads. |
 | [`sse`](./sse) | Server-Sent Events (text/event-stream) WHATWG parser. |
+| [`webhook`](./webhook) | Inbound webhook signature verification (constant-time HMAC + timestamp tolerance). |
 | root [`dexpace`](.) | Umbrella `Client` wiring the default policy stack. |
-
-Reserved for upcoming work (placeholder packages today): `webhook`.
 
 ### Pipeline order
 
