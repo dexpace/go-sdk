@@ -96,6 +96,33 @@ func TestBearerPropagatesCredentialError(t *testing.T) {
 	}
 }
 
+func TestBearerSharedCacheReusesToken(t *testing.T) {
+	t.Parallel()
+
+	cred := &countingCredential{token: "tok", exp: time.Now().Add(time.Hour)}
+	cache := auth.NewInMemoryTokenCache()
+
+	run := func(p *auth.BearerTokenPolicy) {
+		transport := transporterFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
+		})
+		pl := pipeline.New(transport, p)
+		req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
+		resp, err := pl.Do(req)
+		if err != nil {
+			t.Fatalf("Do: %v", err)
+		}
+		_ = resp.Body.Close()
+	}
+
+	run(auth.NewBearerTokenPolicyWithCache(cred, cache, "scope/.default"))
+	run(auth.NewBearerTokenPolicyWithCache(cred, cache, "scope/.default"))
+
+	if cred.calls != 1 {
+		t.Fatalf("GetToken calls = %d, want 1 (shared cache reuses the token)", cred.calls)
+	}
+}
+
 type errCredential struct{ err error }
 
 func (e errCredential) GetToken(context.Context, auth.TokenRequestOptions) (auth.AccessToken, error) {
