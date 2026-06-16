@@ -25,6 +25,7 @@ const (
 	IfModifiedSince   = "If-Modified-Since"
 	IfNoneMatch       = "If-None-Match"
 	IfUnmodifiedSince = "If-Unmodified-Since"
+	LastEventID       = "Last-Event-Id" // canonical form of "Last-Event-ID"
 	Location          = "Location"
 	Range             = "Range"
 	RetryAfter        = "Retry-After"
