@@ -56,5 +56,8 @@
 // JSON default) and Tristate for JSON PATCH payloads; httperr.ResponseError.DecodeInto
 // decodes an error body into a typed value.
 //
+// The sse package parses Server-Sent Events (text/event-stream) into a
+// range-over-func iterator of events.
+//
 // All of core depends only on the Go standard library.
 package dexpace

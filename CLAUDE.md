@@ -95,7 +95,8 @@ go-sdk/
 ├── instrumentation/           # tracing + metrics SPIs, no-op defaults, policies
 ├── config/                    # layered override→env→default settings
 ├── serde/                     # Marshaler/Unmarshaler seam + JSON default + Tristate
-├── sse/  webhook/             # placeholders (doc.go only)
+├── sse/                       # Server-Sent Events (WHATWG) parser
+├── webhook/                   # placeholder (doc.go only)
 ├── .golangci.yml  Makefile  .github/workflows/ci.yml
 └── CONTRIBUTING.md  CLAUDE.md  README.md  LICENSE
 ```
