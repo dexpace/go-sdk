@@ -39,3 +39,21 @@ func TestInMemoryTokenCacheConcurrent(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestInMemoryTokenCacheKeysAreIsolated(t *testing.T) {
+	t.Parallel()
+
+	c := auth.NewInMemoryTokenCache()
+	c.Set("a", auth.AccessToken{Token: "ta"})
+	c.Set("a b", auth.AccessToken{Token: "tab"})
+
+	if got, ok := c.Get("a"); !ok || got.Token != "ta" {
+		t.Fatalf("Get(\"a\") = (%v, %v), want ta/true", got, ok)
+	}
+	if got, ok := c.Get("a b"); !ok || got.Token != "tab" {
+		t.Fatalf("Get(\"a b\") = (%v, %v), want tab/true", got, ok)
+	}
+	if _, ok := c.Get("b"); ok {
+		t.Fatal("Get(\"b\") should be a miss (distinct key)")
+	}
+}

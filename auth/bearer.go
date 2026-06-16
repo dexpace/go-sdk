@@ -48,7 +48,9 @@ func NewBearerTokenPolicy(cred TokenCredential, scopes ...string) *BearerTokenPo
 
 // NewBearerTokenPolicyWithCache is like [NewBearerTokenPolicy] but stores tokens
 // in cache, which may be shared across policies so multiple clients reuse a
-// cached token.
+// cached token. Each policy serializes its own refresh; when the cached token is
+// stale, two policies sharing a cache may refresh independently (last write wins).
+// Cross-policy single-flight is not performed.
 func NewBearerTokenPolicyWithCache(cred TokenCredential, cache TokenCache, scopes ...string) *BearerTokenPolicy {
 	return &BearerTokenPolicy{
 		cred:  cred,
