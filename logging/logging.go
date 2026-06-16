@@ -2,8 +2,10 @@
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
 // Package logging provides a pipeline policy that emits structured request and
-// response records through log/slog. URLs are redacted so credentials carried in
-// userinfo never reach the logs.
+// response records through log/slog. URLs are redacted before logging: userinfo
+// is stripped and query-string values are redacted by default (allowlist them
+// with the umbrella WithRedactionAllowlist option), so secrets never reach the
+// logs.
 package logging
 
 import (

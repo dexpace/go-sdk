@@ -67,7 +67,7 @@ Reserved for upcoming work (placeholder packages today): `sse`, `webhook`,
 `dexpace.New` assembles policies outermost-first:
 
 ```
-user-agent → idempotency → retry → auth → date → logging → custom → transport
+user-agent → idempotency → retry → auth → date → [tracing] → [metrics] → logging → custom → transport
 ```
 
 Retry wraps the inner policies, so auth re-runs (and may refresh its token) on

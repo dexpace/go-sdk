@@ -5,7 +5,7 @@ package redact
 
 import (
 	"net/url"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -54,7 +54,7 @@ func (r *Redactor) redactQuery(q url.Values) string {
 	for k := range q {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	var b strings.Builder
 	for _, k := range keys {

@@ -25,6 +25,7 @@ const (
 	IfNoneMatch     = "If-None-Match"
 	Location        = "Location"
 	RetryAfter      = "Retry-After"
+	Traceparent     = "Traceparent" // W3C trace-context header
 	UserAgent       = "User-Agent"
 	WWWAuthenticate = "Www-Authenticate" // canonical form of "WWW-Authenticate"
 	XRequestID      = "X-Request-Id"     // canonical form of "X-Request-ID"

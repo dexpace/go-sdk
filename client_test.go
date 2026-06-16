@@ -438,10 +438,8 @@ func TestWithMetricsInstallsPolicy(t *testing.T) {
 func TestObservabilityOffByDefault(t *testing.T) {
 	t.Parallel()
 
-	tr := &spyTracer{}
-	m := &spyMeter{}
-	// Note: the spies are created but NOT registered via WithTracing/WithMetrics.
-	c := dexpace.New(dexpace.WithTransport(statusTransport(http.StatusOK, nil)))
+	var captured *http.Request
+	c := dexpace.New(dexpace.WithTransport(captureTransport(&captured)))
 	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
 	resp, err := c.Do(req)
 	if err != nil {
@@ -449,11 +447,8 @@ func TestObservabilityOffByDefault(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = resp.Body.Close() })
 
-	if tr.started {
-		t.Fatal("tracing policy ran without WithTracing")
-	}
-	if m.recorded {
-		t.Fatal("metrics policy ran without WithMetrics")
+	if got := captured.Header.Get("Traceparent"); got != "" {
+		t.Fatalf("Traceparent = %q, want empty when WithTracing is not used", got)
 	}
 }
 
@@ -483,5 +478,49 @@ func TestWithRedactionAllowlistAppliesToLogging(t *testing.T) {
 	}
 	if !strings.Contains(out, "page=2") {
 		t.Fatalf("allowlisted page should be preserved: %s", out)
+	}
+}
+
+type capturingSpan struct{ attrs []instrumentation.Attr }
+
+func (s *capturingSpan) SetAttributes(a ...instrumentation.Attr) { s.attrs = append(s.attrs, a...) }
+func (s *capturingSpan) RecordError(error)                       {}
+func (s *capturingSpan) End()                                    {}
+func (s *capturingSpan) Context() instrumentation.SpanContext    { return instrumentation.SpanContext{} }
+
+type capturingTracer struct{ span *capturingSpan }
+
+func (tr *capturingTracer) StartSpan(ctx context.Context, _ string) (context.Context, instrumentation.Span) {
+	return ctx, tr.span
+}
+
+func TestWithRedactionAllowlistAppliesToTracing(t *testing.T) {
+	t.Parallel()
+
+	span := &capturingSpan{}
+	tr := &capturingTracer{span: span}
+	c := dexpace.New(
+		dexpace.WithTransport(statusTransport(http.StatusOK, nil)),
+		dexpace.WithTracing(tr),
+		dexpace.WithRedactionAllowlist("page"),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/x?token=secret&page=2", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	var urlFull string
+	for _, a := range span.attrs {
+		if a.Key == "url.full" {
+			urlFull, _ = a.Value.(string)
+		}
+	}
+	if strings.Contains(urlFull, "secret") {
+		t.Fatalf("url.full leaked secret: %q", urlFull)
+	}
+	if !strings.Contains(urlFull, "token=REDACTED") || !strings.Contains(urlFull, "page=2") {
+		t.Fatalf("url.full = %q, want token redacted and page preserved", urlFull)
 	}
 }

@@ -7,12 +7,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/dexpace/go-sdk/header"
 	"github.com/dexpace/go-sdk/pipeline"
 	"github.com/dexpace/go-sdk/redact"
 )
-
-// traceparentHeader is the canonical form of the W3C trace-context header.
-const traceparentHeader = "Traceparent"
 
 // NewTracingPolicy returns a pipeline policy that records a span around each
 // request it wraps, using tracer (defaulting to NoopTracer) and rendering URLs
@@ -62,12 +60,12 @@ func hostOf(req *http.Request) string {
 // injectTraceparent sets a W3C traceparent header derived from sc when sc is
 // non-zero and the request does not already carry one.
 func injectTraceparent(req *http.Request, sc SpanContext) {
-	if sc.IsZero() || req.Header.Get(traceparentHeader) != "" {
+	if sc.IsZero() || req.Header.Get(header.Traceparent) != "" {
 		return
 	}
 	flags := "00"
 	if sc.Sampled {
 		flags = "01"
 	}
-	req.Header.Set(traceparentHeader, fmt.Sprintf("00-%x-%x-%s", sc.TraceID, sc.SpanID, flags))
+	req.Header.Set(header.Traceparent, fmt.Sprintf("00-%x-%x-%s", sc.TraceID, sc.SpanID, flags))
 }
