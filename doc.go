@@ -59,5 +59,8 @@
 // The sse package parses Server-Sent Events (text/event-stream) into a
 // range-over-func iterator of events.
 //
+// The webhook package verifies inbound webhook signatures (constant-time HMAC
+// with a timestamp-tolerance window).
+//
 // All of core depends only on the Go standard library.
 package dexpace

@@ -96,7 +96,7 @@ go-sdk/
 ├── config/                    # layered override→env→default settings
 ├── serde/                     # Marshaler/Unmarshaler seam + JSON default + Tristate
 ├── sse/                       # Server-Sent Events (WHATWG) parser
-├── webhook/                   # placeholder (doc.go only)
+├── webhook/                   # inbound signature verification (HMAC + timestamp)
 ├── .golangci.yml  Makefile  .github/workflows/ci.yml
 └── CONTRIBUTING.md  CLAUDE.md  README.md  LICENSE
 ```
