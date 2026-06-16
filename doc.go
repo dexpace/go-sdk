@@ -65,7 +65,8 @@
 //
 // The sse package parses Server-Sent Events (text/event-stream) into a
 // range-over-func iterator of events, with a reconnecting Stream that replays the
-// Last-Event-ID.
+// Last-Event-ID. Client.EventStream wires that reconnecting stream through the
+// pipeline, so every connection runs the configured policies.
 //
 // The webhook package verifies inbound webhook signatures (constant-time HMAC
 // with a timestamp-tolerance window).
