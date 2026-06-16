@@ -115,3 +115,39 @@ func TestDecodeEarlyBreak(t *testing.T) {
 		t.Fatalf("consumed %d values, want 1 after break", count)
 	}
 }
+
+func TestDecodeWithMaxBytes(t *testing.T) {
+	t.Parallel()
+
+	// Two small values fit under the cap.
+	var got []rec
+	for v, err := range jsonl.Decode[rec](strings.NewReader("{\"n\":1}\n{\"n\":2}\n"), jsonl.WithMaxBytes(64)) {
+		if err != nil {
+			t.Fatalf("unexpected error under cap: %v", err)
+		}
+		got = append(got, v)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d values under cap, want 2", len(got))
+	}
+}
+
+func TestDecodeMaxBytesTruncatesOversized(t *testing.T) {
+	t.Parallel()
+
+	// A single value larger than the cap: the read is bounded, so decoding the
+	// truncated input yields an error rather than reading unbounded memory.
+	big := "{\"s\":\"" + strings.Repeat("a", 200) + "\"}"
+	var got int
+	var gotErr error
+	for _, err := range jsonl.Decode[map[string]any](strings.NewReader(big), jsonl.WithMaxBytes(32)) {
+		if err != nil {
+			gotErr = err
+			break
+		}
+		got++
+	}
+	if gotErr == nil {
+		t.Fatalf("expected an error when a value exceeds the byte cap (got %d values)", got)
+	}
+}
