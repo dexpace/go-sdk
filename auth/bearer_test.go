@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,11 +26,15 @@ func (f transporterFunc) Do(req *http.Request) (*http.Response, error) { return 
 type countingCredential struct {
 	token string
 	exp   time.Time
+
+	mu    sync.Mutex
 	calls int
 }
 
 func (c *countingCredential) GetToken(context.Context, auth.TokenRequestOptions) (auth.AccessToken, error) {
+	c.mu.Lock()
 	c.calls++
+	c.mu.Unlock()
 	return auth.AccessToken{Token: c.token, ExpiresOn: c.exp}, nil
 }
 
@@ -96,8 +101,60 @@ func TestBearerPropagatesCredentialError(t *testing.T) {
 	}
 }
 
+func TestBearerSharedCacheReusesToken(t *testing.T) {
+	t.Parallel()
+
+	cred := &countingCredential{token: "tok", exp: time.Now().Add(time.Hour)}
+	cache := auth.NewInMemoryTokenCache()
+
+	run := func(p *auth.BearerTokenPolicy) {
+		transport := transporterFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
+		})
+		pl := pipeline.New(transport, p)
+		req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
+		resp, err := pl.Do(req)
+		if err != nil {
+			t.Fatalf("Do: %v", err)
+		}
+		_ = resp.Body.Close()
+	}
+
+	run(auth.NewBearerTokenPolicyWithCache(cred, cache, "scope/.default"))
+	run(auth.NewBearerTokenPolicyWithCache(cred, cache, "scope/.default"))
+
+	if cred.calls != 1 {
+		t.Fatalf("GetToken calls = %d, want 1 (shared cache reuses the token)", cred.calls)
+	}
+}
+
 type errCredential struct{ err error }
 
 func (e errCredential) GetToken(context.Context, auth.TokenRequestOptions) (auth.AccessToken, error) {
 	return auth.AccessToken{}, e.err
+}
+
+func TestBearerRefetchesNearExpiryToken(t *testing.T) {
+	t.Parallel()
+
+	// Token expires in one minute — inside the five-minute freshness window, so it
+	// is never considered fresh and must be re-fetched on every request.
+	cred := &countingCredential{token: "tok", exp: time.Now().Add(time.Minute)}
+	pl := pipeline.New(
+		transporterFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
+		}),
+		auth.NewBearerTokenPolicy(cred, "scope"),
+	)
+	for range 2 {
+		req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
+		resp, err := pl.Do(req)
+		if err != nil {
+			t.Fatalf("Do: %v", err)
+		}
+		_ = resp.Body.Close()
+	}
+	if cred.calls != 2 {
+		t.Fatalf("GetToken calls = %d, want 2 (near-expiry token re-fetched each request)", cred.calls)
+	}
 }

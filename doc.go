@@ -22,6 +22,9 @@
 // Beyond bearer tokens (WithCredential), WithBasicAuth and WithAPIKey authenticate
 // requests with HTTP Basic auth or an API-key header; both require HTTPS.
 //
+// WithTokenCache shares a bearer-token cache across clients (auth.TokenCache, with
+// an in-memory default).
+//
 // WithConfig sources client defaults (User-Agent, retry settings, transport
 // timeout) from the environment via the config package, for any setting not set
 // explicitly.

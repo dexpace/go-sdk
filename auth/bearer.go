@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,23 +25,39 @@ const expiryWindow = 5 * time.Minute
 var ErrInsecureTransport = errors.New("auth: refusing to send credentials over an insecure (non-HTTPS) connection")
 
 // BearerTokenPolicy attaches an "Authorization: Bearer <token>" header to every
-// request, fetching and caching the token from a [TokenCredential]. The cached
-// token is refreshed once it is within five minutes of expiry.
+// request, fetching the token from a [TokenCredential] and storing it in a
+// [TokenCache]. The cached token is refreshed once it is within five minutes of
+// expiry.
 //
 // The policy requires HTTPS and returns [ErrInsecureTransport] otherwise. It
 // implements pipeline.Policy and is safe for concurrent use.
 type BearerTokenPolicy struct {
-	cred   TokenCredential
-	scopes []string
+	cred  TokenCredential
+	scope []string
+	key   string
+	cache TokenCache
 
-	mu     sync.Mutex
-	cached AccessToken
+	mu sync.Mutex
 }
 
 // NewBearerTokenPolicy returns a policy that authenticates requests using cred
-// for the given scopes.
+// for the given scopes, caching the token in a private in-memory cache.
 func NewBearerTokenPolicy(cred TokenCredential, scopes ...string) *BearerTokenPolicy {
-	return &BearerTokenPolicy{cred: cred, scopes: scopes}
+	return NewBearerTokenPolicyWithCache(cred, NewInMemoryTokenCache(), scopes...)
+}
+
+// NewBearerTokenPolicyWithCache is like [NewBearerTokenPolicy] but stores tokens
+// in cache, which may be shared across policies so multiple clients reuse a
+// cached token. Each policy serializes its own refresh; when the cached token is
+// stale, two policies sharing a cache may refresh independently (last write wins).
+// Cross-policy single-flight is not performed.
+func NewBearerTokenPolicyWithCache(cred TokenCredential, cache TokenCache, scopes ...string) *BearerTokenPolicy {
+	return &BearerTokenPolicy{
+		cred:  cred,
+		scope: scopes,
+		key:   strings.Join(scopes, " "),
+		cache: cache,
+	}
 }
 
 // Do implements pipeline.Policy.
@@ -57,32 +74,32 @@ func (p *BearerTokenPolicy) Do(req *pipeline.Request) (*http.Response, error) {
 	return req.Next()
 }
 
-// token returns a cached token when fresh, otherwise acquires a new one. The
-// lock is held across the credential call so concurrent requests share a single
+// token returns a cached token when fresh, otherwise acquires a new one. The lock
+// is held across the credential call so concurrent requests share a single
 // refresh rather than stampeding the token endpoint.
 func (p *BearerTokenPolicy) token(req *pipeline.Request) (string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.fresh() {
-		return p.cached.Token, nil
+	if tok, ok := p.cache.Get(p.key); ok && fresh(tok) {
+		return tok.Token, nil
 	}
-	tok, err := p.cred.GetToken(req.Raw().Context(), TokenRequestOptions{Scopes: p.scopes})
+	tok, err := p.cred.GetToken(req.Raw().Context(), TokenRequestOptions{Scopes: p.scope})
 	if err != nil {
 		return "", fmt.Errorf("auth: acquire token: %w", err)
 	}
-	p.cached = tok
+	p.cache.Set(p.key, tok)
 	return tok.Token, nil
 }
 
-// fresh reports whether the cached token is present and not near expiry. A zero
-// ExpiresOn means the token never expires.
-func (p *BearerTokenPolicy) fresh() bool {
-	if p.cached.Token == "" {
+// fresh reports whether tok is present and not near expiry. A zero ExpiresOn means
+// the token never expires.
+func fresh(tok AccessToken) bool {
+	if tok.Token == "" {
 		return false
 	}
-	if p.cached.ExpiresOn.IsZero() {
+	if tok.ExpiresOn.IsZero() {
 		return true
 	}
-	return time.Until(p.cached.ExpiresOn) > expiryWindow
+	return time.Until(tok.ExpiresOn) > expiryWindow
 }

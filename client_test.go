@@ -697,6 +697,39 @@ func TestAuthPrecedenceBearerBeatsBasic(t *testing.T) {
 	}
 }
 
+type countingCred struct{ calls int }
+
+func (c *countingCred) GetToken(context.Context, auth.TokenRequestOptions) (auth.AccessToken, error) {
+	c.calls++
+	return auth.AccessToken{Token: "t", ExpiresOn: time.Now().Add(time.Hour)}, nil
+}
+
+func TestWithTokenCacheSharedAcrossClients(t *testing.T) {
+	t.Parallel()
+
+	cred := &countingCred{}
+	cache := auth.NewInMemoryTokenCache()
+
+	for range 2 {
+		var captured *http.Request
+		c := dexpace.New(
+			dexpace.WithTransport(captureTransport(&captured)),
+			dexpace.WithCredential(cred, "scope"),
+			dexpace.WithTokenCache(cache),
+		)
+		req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
+		resp, err := c.Do(req)
+		if err != nil {
+			t.Fatalf("Do: %v", err)
+		}
+		_ = resp.Body.Close()
+	}
+
+	if cred.calls != 1 {
+		t.Fatalf("GetToken calls = %d, want 1 (token cache shared across clients)", cred.calls)
+	}
+}
+
 func TestWithConfigAppliesHTTPTimeout(t *testing.T) {
 	t.Setenv("DEXPACE_HTTP_TIMEOUT", "30ms")
 
