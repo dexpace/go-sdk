@@ -60,7 +60,7 @@ standard library.
 | [`conditions`](./conditions) | Conditional- and range-request value types (ETag, Range, Conditions). |
 | [`config`](./config) | Layered override → environment → default settings resolver; non-failing typed getters. |
 | [`serde`](./serde) | Serialization seam (Marshaler/Unmarshaler) with a JSON default, plus Tristate for PATCH payloads. |
-| [`sse`](./sse) | Server-Sent Events (text/event-stream) WHATWG parser + reconnecting Stream (Last-Event-ID replay). |
+| [`sse`](./sse) | Server-Sent Events (text/event-stream) WHATWG parser + reconnecting Stream (Last-Event-ID replay); `Client.EventStream` runs it through the pipeline. |
 | [`jsonl`](./jsonl) | JSON Lines / NDJSON streaming decoder (`iter.Seq2`). |
 | [`webhook`](./webhook) | Inbound webhook signature verification (constant-time HMAC + timestamp tolerance). |
 | [`formdata`](./formdata) | Multipart/form-data request body builder (replayable; file uploads). |
@@ -117,6 +117,26 @@ stripped and query values are redacted unless allowlisted with
   `DEXPACE_USER_AGENT`, `DEXPACE_MAX_RETRIES` (0 or negative disables retries),
   `DEXPACE_RETRY_BASE_DELAY`, `DEXPACE_HTTP_TIMEOUT` (default transport only) — for
   settings not set explicitly; explicit options always win.
+
+### Streaming
+
+`Client.EventStream(ctx, req, opts...)` returns an `iter.Seq2[sse.Event, error]`
+reconnecting Server-Sent Events stream that runs through the pipeline — every
+connection clones `req`, sets `Accept: text/event-stream`, and replays the
+`Last-Event-ID` after a mid-stream interruption, so auth, logging, and tracing
+run per connection. A non-2xx response or a transport failure on connect ends
+the stream with that error; cancel the request context to stop.
+
+```go
+req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.example.com/v1/events", nil)
+for ev, err := range client.EventStream(ctx, req) {
+	if err != nil {
+		log.Printf("stream ended: %v", err)
+		break
+	}
+	fmt.Println(ev.Data)
+}
+```
 
 ## Requirements
 
