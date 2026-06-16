@@ -111,6 +111,8 @@ stripped and query values are redacted unless allowlisted with
   by default) across clients so a cached token is reused.
 - `WithBasicAuth(username, password)` — authenticates requests with HTTP Basic auth (HTTPS-only).
 - `WithAPIKey(header, key)` — sets an API-key header on every request (HTTPS-only).
+- `WithDigestAuth(username, password)` — authenticates requests with HTTP Digest Access
+  Authentication, RFC 7616 (MD5/SHA-256, qop=auth; HTTPS-only).
 - `WithConfig(cfg)` — sources defaults from `DEXPACE_*` environment variables —
   `DEXPACE_USER_AGENT`, `DEXPACE_MAX_RETRIES` (0 or negative disables retries),
   `DEXPACE_RETRY_BASE_DELAY`, `DEXPACE_HTTP_TIMEOUT` (default transport only) — for

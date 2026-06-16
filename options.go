@@ -32,6 +32,7 @@ type config struct {
 	tokenCache auth.TokenCache
 	basicAuth  *auth.BasicCredential
 	apiKey     apiKeyConfig
+	digestAuth *auth.BasicCredential
 	logger     *slog.Logger
 	logging    bool
 	date       bool
@@ -94,6 +95,16 @@ func WithBasicAuth(username, password string) Option {
 func WithAPIKey(header, key string) Option {
 	return func(c *config) {
 		c.apiKey = apiKeyConfig{header: header, key: key, set: true}
+	}
+}
+
+// WithDigestAuth authenticates requests with HTTP Digest Access Authentication
+// (RFC 7616). Like all credential policies it requires HTTPS. Precedence when
+// multiple auth options are set: WithCredential, WithBasicAuth, WithAPIKey, then
+// WithDigestAuth.
+func WithDigestAuth(username, password string) Option {
+	return func(c *config) {
+		c.digestAuth = &auth.BasicCredential{Username: username, Password: password}
 	}
 }
 
