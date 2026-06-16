@@ -57,6 +57,7 @@ standard library.
 | [`mediatype`](./mediatype) | Immutable media-type value with parsing and common constants. |
 | [`header`](./header) | Canonical HTTP header-name constants. |
 | [`pagination`](./pagination) | Generic token-pagination as `iter.Seq2` range-over-func iterators. |
+| [`config`](./config) | Layered override → environment → default settings resolver; non-failing typed getters. |
 | root [`dexpace`](.) | Umbrella `Client` wiring the default policy stack. |
 
 Reserved for upcoming work (placeholder packages today): `sse`, `webhook`,

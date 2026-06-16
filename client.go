@@ -82,6 +82,8 @@ func New(opts ...Option) *Client {
 		retryOpts = retry.Options{
 			BaseDelay: cfg.cfgSource.GetDuration(cfgpkg.EnvRetryBaseDelay, 0),
 		}
+		// Lookup (not GetInt) so we can tell "absent" (keep the SDK default)
+		// from an explicit 0 or negative (disable retries).
 		if v, ok := cfg.cfgSource.Lookup(cfgpkg.EnvMaxRetries); ok {
 			if n, err := strconv.Atoi(v); err == nil {
 				if n <= 0 {
