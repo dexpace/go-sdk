@@ -15,7 +15,7 @@ const (
 	rfcURI    = "/dir/index.html"
 )
 
-func fixedDigest(t *testing.T, algorithm string) *DigestAuthPolicy {
+func fixedDigest(t *testing.T) *DigestAuthPolicy {
 	t.Helper()
 	p := NewDigestAuthPolicy(BasicCredential{Username: rfcUser, Password: rfcPass})
 	p.newCnonce = func() (string, error) { return rfcCnonce, nil }
@@ -24,7 +24,7 @@ func fixedDigest(t *testing.T, algorithm string) *DigestAuthPolicy {
 
 func TestAuthorizationRFC7616SHA256(t *testing.T) {
 	t.Parallel()
-	p := fixedDigest(t, "SHA-256")
+	p := fixedDigest(t)
 	ch := parseChallenge([]string{`Digest realm="` + rfcRealm + `", qop="auth", algorithm=SHA-256, nonce="` + rfcNonce + `", opaque="FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"`})
 	if ch == nil {
 		t.Fatal("parseChallenge returned nil for a SHA-256 challenge")
@@ -41,7 +41,7 @@ func TestAuthorizationRFC7616SHA256(t *testing.T) {
 
 func TestAuthorizationRFC7616MD5(t *testing.T) {
 	t.Parallel()
-	p := fixedDigest(t, "MD5")
+	p := fixedDigest(t)
 	ch := parseChallenge([]string{`Digest realm="` + rfcRealm + `", qop="auth", algorithm=MD5, nonce="` + rfcNonce + `", opaque="FQhe/qaU925kfnzjCev0ciny7QMkPqMAFRtzCUYo5tdS"`})
 	if ch == nil {
 		t.Fatal("parseChallenge returned nil for an MD5 challenge")
