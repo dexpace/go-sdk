@@ -93,6 +93,8 @@ wire a backend):
   via the instrumentation `Tracer` SPI and injects a W3C `traceparent` header.
 - `WithMetrics(meter)` — installs a metrics policy recording request duration and
   in-flight requests via the instrumentation `Meter` SPI.
+- `WithBasicAuth(username, password)` — authenticates requests with HTTP Basic auth (HTTPS-only).
+- `WithAPIKey(header, key)` — sets an API-key header on every request (HTTPS-only).
 - `WithRedactionAllowlist(params...)` — preserves the listed query-param values in
   redacted URLs (logs and traces); all other query values are redacted by default.
 - `WithConfig(cfg)` — sources defaults from `DEXPACE_*` environment variables —
