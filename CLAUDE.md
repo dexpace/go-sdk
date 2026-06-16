@@ -93,7 +93,8 @@ go-sdk/
 ├── redact/                    # default-deny URL redactor (userinfo + query values)
 ├── instrumentation/           # tracing + metrics SPIs, no-op defaults, policies
 ├── config/                    # layered override→env→default settings
-├── sse/  webhook/  serde/     # placeholders (doc.go only)
+├── serde/                     # Marshaler/Unmarshaler seam + JSON default + Tristate
+├── sse/  webhook/             # placeholders (doc.go only)
 ├── .golangci.yml  Makefile  .github/workflows/ci.yml
 └── CONTRIBUTING.md  CLAUDE.md  README.md  LICENSE
 ```
