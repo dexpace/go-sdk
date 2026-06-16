@@ -20,7 +20,7 @@ type transporterFunc func(*http.Request) (*http.Response, error)
 func (f transporterFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }
 
 func okResp(req *http.Request) (*http.Response, error) {
-	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
 }
 
 type fakeSpan struct {

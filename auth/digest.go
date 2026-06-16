@@ -4,7 +4,7 @@
 package auth
 
 import (
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // G501: MD5 is mandated by RFC 7616 Digest; it is a protocol primitive here, not used for security-sensitive hashing.
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -70,7 +70,7 @@ func (p *DigestAuthPolicy) Do(req *pipeline.Request) (*http.Response, error) {
 		return resp, nil
 	}
 	if rerr := req.RewindBody(); rerr != nil {
-		return resp, nil // non-replayable body: cannot retry, surface the 401
+		return resp, nil //nolint:nilerr // intentional: a non-replayable body cannot be retried, so the 401 response is surfaced unchanged.
 	}
 	nc := p.adopt(ch)
 	hdr, herr := p.authorization(ch, nc, raw.Method, raw.URL.RequestURI())

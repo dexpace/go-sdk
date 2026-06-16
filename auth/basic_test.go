@@ -17,7 +17,7 @@ import (
 func okTransport(seen *http.Request) transporterFunc {
 	return func(req *http.Request) (*http.Response, error) {
 		*seen = *req
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
 	}
 }
 

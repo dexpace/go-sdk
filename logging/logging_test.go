@@ -25,7 +25,7 @@ func TestLoggingRedactsQuerySecret(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 	transport := transporterFunc(func(req *http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
 	})
 	pl := pipeline.New(transport, logging.NewPolicy(logging.Options{Logger: logger}))
 

@@ -35,7 +35,7 @@ func (f transporterFunc) Do(req *http.Request) (*http.Response, error) { return 
 func captureTransport(captured **http.Request) transporterFunc {
 	return func(r *http.Request) (*http.Response, error) {
 		*captured = r
-		return &http.Response{StatusCode: 200, Body: http.NoBody, Request: r}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Request: r}, nil
 	}
 }
 

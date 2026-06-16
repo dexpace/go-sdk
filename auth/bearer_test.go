@@ -44,7 +44,7 @@ func TestBearerAttachesHeaderAndCaches(t *testing.T) {
 	var seen string
 	transport := transporterFunc(func(req *http.Request) (*http.Response, error) {
 		seen = req.Header.Get(header.Authorization)
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
 	})
 
 	cred := &countingCredential{token: "abc123", exp: time.Now().Add(time.Hour)}
@@ -90,7 +90,7 @@ func TestBearerPropagatesCredentialError(t *testing.T) {
 	cred := errCredential{err: wantErr}
 	pl := pipeline.New(
 		transporterFunc(func(req *http.Request) (*http.Response, error) {
-			return &http.Response{StatusCode: 200, Body: http.NoBody, Request: req}, nil
+			return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Request: req}, nil
 		}),
 		auth.NewBearerTokenPolicy(cred),
 	)
@@ -109,7 +109,7 @@ func TestBearerSharedCacheReusesToken(t *testing.T) {
 
 	run := func(p *auth.BearerTokenPolicy) {
 		transport := transporterFunc(func(req *http.Request) (*http.Response, error) {
-			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
 		})
 		pl := pipeline.New(transport, p)
 		req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
@@ -142,7 +142,7 @@ func TestBearerRefetchesNearExpiryToken(t *testing.T) {
 	cred := &countingCredential{token: "tok", exp: time.Now().Add(time.Minute)}
 	pl := pipeline.New(
 		transporterFunc(func(req *http.Request) (*http.Response, error) {
-			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
 		}),
 		auth.NewBearerTokenPolicy(cred, "scope"),
 	)

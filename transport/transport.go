@@ -94,7 +94,7 @@ func New(opts ...Option) *Transport {
 
 // Do performs the HTTP round-trip. It satisfies pipeline.Transporter.
 func (t *Transport) Do(req *http.Request) (*http.Response, error) {
-	return t.client.Do(req)
+	return t.client.Do(req) //nolint:gosec // G704: this is the SDK's HTTP transport; issuing the caller's own request is its sole purpose.
 }
 
 // defaultRoundTripper clones http.DefaultTransport so global state is untouched,
