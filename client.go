@@ -117,9 +117,16 @@ func New(opts ...Option) *Client {
 		placements = append(placements,
 			pipeline.At(pipeline.StageIdempotency, idempotency.NewPolicy(iopts)))
 	}
-	if cfg.credential != nil {
+	switch {
+	case cfg.credential != nil:
 		placements = append(placements,
 			pipeline.At(pipeline.StageAuth, auth.NewBearerTokenPolicy(cfg.credential, cfg.scopes...)))
+	case cfg.basicAuth != nil:
+		placements = append(placements,
+			pipeline.At(pipeline.StageAuth, auth.NewBasicAuthPolicy(*cfg.basicAuth)))
+	case cfg.apiKey.set:
+		placements = append(placements,
+			pipeline.At(pipeline.StageAuth, auth.NewAPIKeyPolicy(cfg.apiKey.header, cfg.apiKey.key)))
 	}
 	if cfg.date {
 		placements = append(placements, pipeline.At(pipeline.StageDate, datePolicy()))

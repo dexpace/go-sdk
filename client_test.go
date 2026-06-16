@@ -18,6 +18,7 @@ import (
 	"time"
 
 	dexpace "github.com/dexpace/go-sdk"
+	"github.com/dexpace/go-sdk/auth"
 	"github.com/dexpace/go-sdk/config"
 	"github.com/dexpace/go-sdk/httperr"
 	"github.com/dexpace/go-sdk/instrumentation"
@@ -627,6 +628,72 @@ func TestWithConfigZeroMaxRetriesDisablesRetries(t *testing.T) {
 
 	if calls != 1 {
 		t.Fatalf("transport calls = %d, want 1 (retries disabled by env)", calls)
+	}
+}
+
+func TestWithBasicAuth(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithBasicAuth("alice", "s3cr3t"),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	u, p, ok := captured.BasicAuth()
+	if !ok || u != "alice" || p != "s3cr3t" {
+		t.Fatalf("BasicAuth = (%q,%q,%v), want alice/s3cr3t/true", u, p, ok)
+	}
+}
+
+func TestWithAPIKey(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithAPIKey("X-API-Key", "secret-key"),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if got := captured.Header.Get("X-API-Key"); got != "secret-key" {
+		t.Fatalf("X-API-Key = %q, want secret-key", got)
+	}
+}
+
+func TestAuthPrecedenceBearerBeatsBasic(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	// WithBasicAuth listed BEFORE WithCredential; bearer must still win.
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithBasicAuth("alice", "s3cr3t"),
+		dexpace.WithCredential(auth.StaticToken("tok")),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if got := captured.Header.Get("Authorization"); got != "Bearer tok" {
+		t.Fatalf("Authorization = %q, want \"Bearer tok\" (bearer beats basic)", got)
+	}
+	if _, _, ok := captured.BasicAuth(); ok {
+		t.Fatal("basic auth should not be applied when a bearer credential is set")
 	}
 }
 

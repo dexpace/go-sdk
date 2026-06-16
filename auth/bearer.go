@@ -18,10 +18,10 @@ import (
 // stale, so a refresh happens before in-flight requests can start failing.
 const expiryWindow = 5 * time.Minute
 
-// ErrInsecureTransport is returned when a bearer token would be sent over a
+// ErrInsecureTransport is returned when credentials would be sent over a
 // non-HTTPS connection. Sending credentials in clear text is refused to avoid
 // leaking them.
-var ErrInsecureTransport = errors.New("auth: refusing to send bearer token over an insecure (non-HTTPS) connection")
+var ErrInsecureTransport = errors.New("auth: refusing to send credentials over an insecure (non-HTTPS) connection")
 
 // BearerTokenPolicy attaches an "Authorization: Bearer <token>" header to every
 // request, fetching and caching the token from a [TokenCredential]. The cached
