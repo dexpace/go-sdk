@@ -21,24 +21,46 @@ type Page[T any] struct {
 // empty token. A non-nil error ends iteration.
 type FetchFunc[T any] func(ctx context.Context, token string) (Page[T], error)
 
-// Pager lazily walks every page produced by a [FetchFunc].
-type Pager[T any] struct {
-	fetch FetchFunc[T]
+// Option configures a [Pager].
+type Option func(*pagerConfig)
+
+type pagerConfig struct {
+	maxPages int
 }
 
-// New returns a Pager driven by fetch.
-func New[T any](fetch FetchFunc[T]) *Pager[T] {
-	return &Pager[T]{fetch: fetch}
+// WithMaxPages caps how many pages a Pager yields. A value <= 0 means unlimited
+// (the default).
+func WithMaxPages(n int) Option {
+	return func(c *pagerConfig) { c.maxPages = n }
+}
+
+// Pager lazily walks every page produced by a [FetchFunc].
+type Pager[T any] struct {
+	fetch    FetchFunc[T]
+	maxPages int
+}
+
+// New returns a Pager driven by fetch. Options such as [WithMaxPages] tune it.
+func New[T any](fetch FetchFunc[T], opts ...Option) *Pager[T] {
+	var c pagerConfig
+	for _, opt := range opts {
+		opt(&c)
+	}
+	return &Pager[T]{fetch: fetch, maxPages: c.maxPages}
 }
 
 // Pages returns an iterator over successive pages. Iteration stops after the
-// page whose NextToken is empty, when ctx is cancelled, or when fetch returns an
-// error (delivered as the second value of the final iteration). The iterator is
-// single-pass.
+// page whose NextToken is empty, when ctx is cancelled, when fetch returns an
+// error (delivered as the second value of the final iteration), or when the
+// WithMaxPages cap is reached. The iterator is single-pass.
 func (p *Pager[T]) Pages(ctx context.Context) iter.Seq2[Page[T], error] {
 	return func(yield func(Page[T], error) bool) {
 		token := ""
+		pages := 0
 		for {
+			if p.maxPages > 0 && pages >= p.maxPages {
+				return
+			}
 			if err := ctx.Err(); err != nil {
 				yield(Page[T]{}, err)
 				return
@@ -51,6 +73,7 @@ func (p *Pager[T]) Pages(ctx context.Context) iter.Seq2[Page[T], error] {
 			if !yield(page, nil) {
 				return
 			}
+			pages++
 			if page.NextToken == "" {
 				return
 			}
