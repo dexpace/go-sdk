@@ -156,6 +156,8 @@ The SDK ships **zero third-party runtime dependencies**; only the standard
 library is imported by non-test code. See [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 for conventions and [`CLAUDE.md`](./CLAUDE.md) for the enforced rules.
 
+See [CHANGELOG.md](./CHANGELOG.md) for release notes.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
