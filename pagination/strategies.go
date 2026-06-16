@@ -40,7 +40,9 @@ func NewPageNumber[T any](startPage int, fetch func(ctx context.Context, page in
 
 // NewLinkHeader returns a Pager that follows RFC 8288 Link headers. fetch is
 // called with the next URL (empty for the first page) and returns the page's
-// items and the HTTP response whose Link header carries the next URL.
+// items and the HTTP response whose Link header carries the next URL. The Pager
+// owns each returned response and closes its body after reading the Link header,
+// so fetch must finish reading the body (to produce its items) before returning.
 //
 // The next URL is taken from the server-controlled Link header, so fetch should
 // validate or trust the URL's host before dialing it to avoid SSRF.
@@ -50,7 +52,11 @@ func NewLinkHeader[T any](fetch func(ctx context.Context, url string) ([]T, *htt
 		if err != nil {
 			return Page[T]{}, err
 		}
-		return Page[T]{Items: items, NextToken: NextLink(resp)}, nil
+		next := NextLink(resp)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		return Page[T]{Items: items, NextToken: next}, nil
 	}
 	return New(tokenFetch, opts...)
 }

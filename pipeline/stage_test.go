@@ -26,7 +26,7 @@ func TestStagesAreOrdered(t *testing.T) {
 		pipeline.StageLogging,
 	}
 	for i := 1; i < len(ordered); i++ {
-		if !(ordered[i-1] < ordered[i]) {
+		if ordered[i-1] >= ordered[i] {
 			t.Fatalf("stage %d not less than stage %d", ordered[i-1], ordered[i])
 		}
 	}

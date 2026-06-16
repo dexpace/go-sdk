@@ -33,6 +33,14 @@ linters:
         - name: exported
           arguments:
             - disableStutteringCheck
+  exclusions:
+    rules:
+      # Test stub transporters return in-memory bodies (NopCloser / http.NoBody)
+      # that hold no resources, and many cases deliberately discard the response
+      # to assert an error. bodyclose stays enforced for non-test code.
+      - path: _test\.go
+        linters:
+          - bodyclose
 
 formatters:
   enable:

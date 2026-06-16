@@ -42,7 +42,7 @@ func TestSetContextIgnoresNil(t *testing.T) {
 	t.Parallel()
 
 	p := pipeline.PolicyFunc(func(req *pipeline.Request) (*http.Response, error) {
-		req.SetContext(nil) // must not panic
+		req.SetContext(nil) //nolint:staticcheck // SA1012: intentionally nil to verify SetContext ignores a nil context (must not panic).
 		return req.Next()
 	})
 	pl := pipeline.New(transporterFunc(okResponse), p)

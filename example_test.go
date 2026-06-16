@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/dexpace/go-sdk"
+	dexpace "github.com/dexpace/go-sdk"
 	"github.com/dexpace/go-sdk/retry"
 )
 
@@ -18,7 +18,7 @@ import (
 // standard *http.Request, read the response.
 func ExampleClient_Do() {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprint(w, "pong")
+		_, _ = fmt.Fprint(w, "pong")
 	}))
 	defer srv.Close()
 
