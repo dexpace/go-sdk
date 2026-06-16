@@ -57,7 +57,8 @@
 // decodes an error body into a typed value.
 //
 // The sse package parses Server-Sent Events (text/event-stream) into a
-// range-over-func iterator of events.
+// range-over-func iterator of events, with a reconnecting Stream that replays the
+// Last-Event-ID.
 //
 // The webhook package verifies inbound webhook signatures (constant-time HMAC
 // with a timestamp-tolerance window).
