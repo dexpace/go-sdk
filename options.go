@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/go-sdk/auth"
 	"github.com/dexpace/go-sdk/idempotency"
+	"github.com/dexpace/go-sdk/instrumentation"
 	"github.com/dexpace/go-sdk/pipeline"
 	"github.com/dexpace/go-sdk/retry"
 )
@@ -32,6 +33,10 @@ type config struct {
 	before        []pipeline.Placement
 	after         []pipeline.Placement
 	errorsEnabled bool
+
+	tracer      instrumentation.Tracer
+	meter       instrumentation.Meter
+	redactAllow []string
 }
 
 // WithTransport sets the terminal transport. When unset, the default net/http
@@ -112,6 +117,27 @@ func WithDate() Option {
 // surface as raw net/http errors.
 func WithErrors() Option {
 	return func(c *config) { c.errorsEnabled = true }
+}
+
+// WithTracing installs a tracing policy that records a span around each request
+// attempt using tracer, injecting a W3C traceparent header. A nil tracer is
+// ignored (no policy installed). Off by default.
+func WithTracing(tracer instrumentation.Tracer) Option {
+	return func(c *config) { c.tracer = tracer }
+}
+
+// WithMetrics installs a metrics policy that records request duration and
+// in-flight count using meter. A nil meter is ignored (no policy installed). Off
+// by default.
+func WithMetrics(meter instrumentation.Meter) Option {
+	return func(c *config) { c.meter = meter }
+}
+
+// WithRedactionAllowlist preserves the values of the named query parameters in
+// redacted URLs (logs and traces); all other query values are redacted. Applies
+// to the logging and tracing policies.
+func WithRedactionAllowlist(params ...string) Option {
+	return func(c *config) { c.redactAllow = params }
 }
 
 // WithUserAgent overrides the default User-Agent ("dexpace-go-sdk/<version>").

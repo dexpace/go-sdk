@@ -4,6 +4,7 @@
 package pipeline
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -47,6 +48,17 @@ type Request struct {
 // Raw returns the underlying *http.Request. Policies mutate the request (set
 // headers, swap the body) directly through this handle.
 func (r *Request) Raw() *http.Request { return r.req }
+
+// SetContext replaces the underlying request's context. Policies use it to enrich
+// the request context — for example, the tracing policy propagates the active
+// span so downstream policies and nested spans can find it. A nil context is
+// ignored.
+func (r *Request) SetContext(ctx context.Context) {
+	if ctx == nil {
+		return
+	}
+	r.req = r.req.WithContext(ctx)
+}
 
 // Next invokes the next policy in the chain and returns its result. The terminal
 // policy performs the transport round-trip. Calling Next more than once re-runs

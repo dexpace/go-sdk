@@ -4,10 +4,12 @@
 package dexpace_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,6 +17,7 @@ import (
 
 	dexpace "github.com/dexpace/go-sdk"
 	"github.com/dexpace/go-sdk/httperr"
+	"github.com/dexpace/go-sdk/instrumentation"
 	"github.com/dexpace/go-sdk/pipeline"
 	"github.com/dexpace/go-sdk/retry"
 )
@@ -368,5 +371,156 @@ func TestWithErrorsClosesBodyOnTransportError(t *testing.T) {
 	}
 	if !closed {
 		t.Fatal("response body was not closed on the transport-error path")
+	}
+}
+
+type spySpan struct{}
+
+func (spySpan) SetAttributes(...instrumentation.Attr) {}
+func (spySpan) RecordError(error)                     {}
+func (spySpan) End()                                  {}
+func (spySpan) Context() instrumentation.SpanContext  { return instrumentation.SpanContext{} }
+
+type spyTracer struct{ started bool }
+
+func (s *spyTracer) StartSpan(ctx context.Context, _ string) (context.Context, instrumentation.Span) {
+	s.started = true
+	return ctx, spySpan{}
+}
+
+type spyHist struct{ m *spyMeter }
+
+func (h spyHist) Record(context.Context, float64, ...instrumentation.Attr) { h.m.recorded = true }
+
+type spyUD struct{}
+
+func (spyUD) Add(context.Context, int64, ...instrumentation.Attr) {}
+
+type spyMeter struct{ recorded bool }
+
+func (m *spyMeter) Histogram(string) instrumentation.Histogram         { return spyHist{m} }
+func (m *spyMeter) UpDownCounter(string) instrumentation.UpDownCounter { return spyUD{} }
+
+func TestWithTracingInstallsPolicy(t *testing.T) {
+	t.Parallel()
+
+	tr := &spyTracer{}
+	c := dexpace.New(dexpace.WithTransport(statusTransport(http.StatusOK, nil)), dexpace.WithTracing(tr))
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if !tr.started {
+		t.Fatal("tracer was not invoked; tracing policy not installed")
+	}
+}
+
+func TestWithMetricsInstallsPolicy(t *testing.T) {
+	t.Parallel()
+
+	m := &spyMeter{}
+	c := dexpace.New(dexpace.WithTransport(statusTransport(http.StatusOK, nil)), dexpace.WithMetrics(m))
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if !m.recorded {
+		t.Fatal("meter was not invoked; metrics policy not installed")
+	}
+}
+
+func TestObservabilityOffByDefault(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(dexpace.WithTransport(captureTransport(&captured)))
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if got := captured.Header.Get("Traceparent"); got != "" {
+		t.Fatalf("Traceparent = %q, want empty when WithTracing is not used", got)
+	}
+}
+
+func TestWithRedactionAllowlistAppliesToLogging(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	c := dexpace.New(
+		dexpace.WithTransport(statusTransport(http.StatusOK, nil)),
+		dexpace.WithLogging(logger),
+		dexpace.WithRedactionAllowlist("page"),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/x?token=secret&page=2", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	out := buf.String()
+	if strings.Contains(out, "secret") {
+		t.Fatalf("log leaked the query secret: %s", out)
+	}
+	if !strings.Contains(out, "token=REDACTED") {
+		t.Fatalf("log should redact token: %s", out)
+	}
+	if !strings.Contains(out, "page=2") {
+		t.Fatalf("allowlisted page should be preserved: %s", out)
+	}
+}
+
+type capturingSpan struct{ attrs []instrumentation.Attr }
+
+func (s *capturingSpan) SetAttributes(a ...instrumentation.Attr) { s.attrs = append(s.attrs, a...) }
+func (s *capturingSpan) RecordError(error)                       {}
+func (s *capturingSpan) End()                                    {}
+func (s *capturingSpan) Context() instrumentation.SpanContext    { return instrumentation.SpanContext{} }
+
+type capturingTracer struct{ span *capturingSpan }
+
+func (tr *capturingTracer) StartSpan(ctx context.Context, _ string) (context.Context, instrumentation.Span) {
+	return ctx, tr.span
+}
+
+func TestWithRedactionAllowlistAppliesToTracing(t *testing.T) {
+	t.Parallel()
+
+	span := &capturingSpan{}
+	tr := &capturingTracer{span: span}
+	c := dexpace.New(
+		dexpace.WithTransport(statusTransport(http.StatusOK, nil)),
+		dexpace.WithTracing(tr),
+		dexpace.WithRedactionAllowlist("page"),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/x?token=secret&page=2", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	var urlFull string
+	for _, a := range span.attrs {
+		if a.Key == "url.full" {
+			urlFull, _ = a.Value.(string)
+		}
+	}
+	if strings.Contains(urlFull, "secret") {
+		t.Fatalf("url.full leaked secret: %q", urlFull)
+	}
+	if !strings.Contains(urlFull, "token=REDACTED") || !strings.Contains(urlFull, "page=2") {
+		t.Fatalf("url.full = %q, want token redacted and page preserved", urlFull)
 	}
 }

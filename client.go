@@ -11,8 +11,10 @@ import (
 	"github.com/dexpace/go-sdk/header"
 	"github.com/dexpace/go-sdk/httperr"
 	"github.com/dexpace/go-sdk/idempotency"
+	"github.com/dexpace/go-sdk/instrumentation"
 	"github.com/dexpace/go-sdk/logging"
 	"github.com/dexpace/go-sdk/pipeline"
+	"github.com/dexpace/go-sdk/redact"
 	"github.com/dexpace/go-sdk/retry"
 	"github.com/dexpace/go-sdk/transport"
 )
@@ -27,10 +29,12 @@ type Client struct {
 // New assembles a Client. Built-in policies are placed in stage order, outermost
 // first:
 //
-//	client-identity → idempotency → retry → auth → date → logging → transport
+//	client-identity → idempotency → retry → auth → date → [tracing] → [metrics] → logging → transport
 //
 // When WithErrors is supplied, an errors stage is prepended as the outermost
 // policy, mapping the final result to the typed error model.
+// When WithTracing or WithMetrics is supplied, a tracing or metrics stage is
+// installed at StageTracing or StageMetrics (inside retry).
 //
 // Idempotency wraps retry, so a single key is minted once per logical call and
 // reused across attempts; retry in turn wraps auth and logging, so auth re-runs
@@ -61,6 +65,11 @@ func New(opts ...Option) *Client {
 		retryOpts = *cfg.retry
 	}
 
+	redactor := redact.Default
+	if len(cfg.redactAllow) > 0 {
+		redactor = redact.New(cfg.redactAllow...)
+	}
+
 	placements := []pipeline.Placement{
 		pipeline.At(pipeline.StageClientIdentity, userAgentPolicy(ua)),
 		pipeline.At(pipeline.StageRetry, retry.NewPolicy(retryOpts)),
@@ -87,7 +96,15 @@ func New(opts ...Option) *Client {
 	}
 	if cfg.logging {
 		placements = append(placements,
-			pipeline.At(pipeline.StageLogging, logging.NewPolicy(logging.Options{Logger: cfg.logger})))
+			pipeline.At(pipeline.StageLogging, logging.NewPolicy(logging.Options{Logger: cfg.logger, Redactor: redactor})))
+	}
+	if cfg.tracer != nil {
+		placements = append(placements,
+			pipeline.At(pipeline.StageTracing, instrumentation.NewTracingPolicy(cfg.tracer, redactor)))
+	}
+	if cfg.meter != nil {
+		placements = append(placements,
+			pipeline.At(pipeline.StageMetrics, instrumentation.NewMetricsPolicy(cfg.meter)))
 	}
 	placements = append(placements, cfg.before...)
 	placements = append(placements, cfg.after...)

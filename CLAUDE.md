@@ -90,7 +90,9 @@ go-sdk/
 ├── mediatype/                 # immutable MediaType + constants
 ├── header/                    # canonical header-name constants
 ├── pagination/                # generic iter.Seq2 Pager
-├── sse/  webhook/  serde/  config/  instrumentation/   # placeholders (doc.go only)
+├── redact/                    # default-deny URL redactor (userinfo + query values)
+├── instrumentation/           # tracing + metrics SPIs, no-op defaults, policies
+├── sse/  webhook/  serde/  config/   # placeholders (doc.go only)
 ├── .golangci.yml  Makefile  .github/workflows/ci.yml
 └── CONTRIBUTING.md  CLAUDE.md  README.md  LICENSE
 ```
@@ -117,7 +119,7 @@ terminating in a `Transporter`:
 2. **`transport`** — wraps an `*http.Client` (cloned `http.DefaultTransport`
    with larger idle-conn limits) to satisfy `Transporter`.
 3. **Policies** — `retry`, `auth`, `logging`, each a `Policy`. Order is set by
-   `dexpace.New`: `user-agent → idempotency → retry → auth → date → logging → custom → transport`.
+   `dexpace.New`: `user-agent → idempotency → retry → auth → date → [tracing] → [metrics] → logging → custom → transport`.
 4. **Value layer** — `mediatype`, `header`, `httperr`, `pagination`: small,
    stdlib-only helpers over `net/http`.
 

@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/dexpace/go-sdk/redact"
 )
 
 // maxErrorBodyBytes caps how much of an error response body is buffered for
@@ -86,7 +88,7 @@ func FromResponse(resp *http.Response) *ResponseError {
 	if resp.Request != nil {
 		rerr.Method = resp.Request.Method
 		if resp.Request.URL != nil {
-			rerr.URL = resp.Request.URL.Redacted()
+			rerr.URL = redact.Default.URL(resp.Request.URL)
 		}
 	}
 	return rerr

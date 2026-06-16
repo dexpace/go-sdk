@@ -74,3 +74,26 @@ func TestErrorsAsExtractsResponseError(t *testing.T) {
 		t.Fatalf("StatusCode = %d, want 502", rerr.StatusCode)
 	}
 }
+
+func TestResponseErrorRedactsQuery(t *testing.T) {
+	t.Parallel()
+
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader("bad")),
+		Request: &http.Request{
+			Method: http.MethodGet,
+			URL:    &url.URL{Scheme: "https", Host: "api.example.test", Path: "/things", RawQuery: "api_key=secret"},
+		},
+	}
+	rerr := httperr.FromResponse(resp)
+	if rerr == nil {
+		t.Fatal("expected a ResponseError")
+	}
+	if strings.Contains(rerr.URL, "secret") {
+		t.Fatalf("URL %q leaked the query secret", rerr.URL)
+	}
+	if !strings.Contains(rerr.URL, "api_key=REDACTED") {
+		t.Fatalf("URL %q should show api_key=REDACTED", rerr.URL)
+	}
+}

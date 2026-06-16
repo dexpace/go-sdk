@@ -21,6 +21,8 @@ func TestStagesAreOrdered(t *testing.T) {
 		pipeline.StageRetry,
 		pipeline.StageAuth,
 		pipeline.StageDate,
+		pipeline.StageTracing,
+		pipeline.StageMetrics,
 		pipeline.StageLogging,
 	}
 	for i := 1; i < len(ordered); i++ {
