@@ -3,7 +3,6 @@
 
 // Package sse parses a text/event-stream (Server-Sent Events) per the WHATWG
 // algorithm, yielding each dispatched [Event] through [Parse] as a range-over-func
-// iterator. It operates on any io.Reader; a reconnecting connection
-// (Last-Event-ID replay, server retry backoff) is intentionally left to the
-// caller and a future addition.
+// iterator. [Stream] adds a reconnecting consumer over a caller-supplied
+// connection, replaying the Last-Event-ID and honoring the server's retry backoff.
 package sse
