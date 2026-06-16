@@ -61,6 +61,7 @@ standard library.
 | [`config`](./config) | Layered override → environment → default settings resolver; non-failing typed getters. |
 | [`serde`](./serde) | Serialization seam (Marshaler/Unmarshaler) with a JSON default, plus Tristate for PATCH payloads. |
 | [`sse`](./sse) | Server-Sent Events (text/event-stream) WHATWG parser + reconnecting Stream (Last-Event-ID replay). |
+| [`jsonl`](./jsonl) | JSON Lines / NDJSON streaming decoder (`iter.Seq2`). |
 | [`webhook`](./webhook) | Inbound webhook signature verification (constant-time HMAC + timestamp tolerance). |
 | [`formdata`](./formdata) | Multipart/form-data request body builder (replayable; file uploads). |
 | root [`dexpace`](.) | Umbrella `Client` wiring the default policy stack. |

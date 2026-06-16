@@ -95,6 +95,7 @@ go-sdk/
 ├── instrumentation/           # tracing + metrics SPIs, no-op defaults, policies
 ├── config/                    # layered override→env→default settings
 ├── serde/                     # Marshaler/Unmarshaler seam + JSON default + Tristate
+├── jsonl/                     # NDJSON / JSON Lines stream decoder
 ├── sse/                       # Server-Sent Events (WHATWG) parser
 ├── webhook/                   # inbound signature verification (HMAC + timestamp)
 ├── formdata/                  # multipart/form-data body builder
