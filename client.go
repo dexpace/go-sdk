@@ -5,9 +5,11 @@ package dexpace
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/dexpace/go-sdk/auth"
+	cfgpkg "github.com/dexpace/go-sdk/config"
 	"github.com/dexpace/go-sdk/header"
 	"github.com/dexpace/go-sdk/httperr"
 	"github.com/dexpace/go-sdk/idempotency"
@@ -44,6 +46,9 @@ type Client struct {
 // WithoutIdempotency); set-date is opt-in (WithDate). Custom policies added with
 // WithPolicies run just before the transport; use WithPolicyBefore /
 // WithPolicyAfter to place a policy relative to a specific stage.
+//
+// Pass WithConfig to fill any unset defaults (User-Agent, retry settings,
+// transport timeout) from DEXPACE_* environment variables.
 func New(opts ...Option) *Client {
 	var cfg config
 	for _, opt := range opts {
@@ -52,17 +57,42 @@ func New(opts ...Option) *Client {
 
 	t := cfg.transport
 	if t == nil {
-		t = transport.New()
+		var topts []transport.Option
+		if cfg.cfgSource != nil {
+			if d := cfg.cfgSource.GetDuration(cfgpkg.EnvHTTPTimeout, 0); d > 0 {
+				topts = append(topts, transport.WithTimeout(d))
+			}
+		}
+		t = transport.New(topts...)
 	}
 
 	ua := cfg.userAgent
 	if ua == "" {
 		ua = userAgent
+		if cfg.cfgSource != nil {
+			ua = cfg.cfgSource.GetString(cfgpkg.EnvUserAgent, userAgent)
+		}
 	}
 
 	retryOpts := retry.Options{}
-	if cfg.retry != nil {
+	switch {
+	case cfg.retry != nil:
 		retryOpts = *cfg.retry
+	case cfg.cfgSource != nil:
+		retryOpts = retry.Options{
+			BaseDelay: cfg.cfgSource.GetDuration(cfgpkg.EnvRetryBaseDelay, 0),
+		}
+		// Lookup (not GetInt) so we can tell "absent" (keep the SDK default)
+		// from an explicit 0 or negative (disable retries).
+		if v, ok := cfg.cfgSource.Lookup(cfgpkg.EnvMaxRetries); ok {
+			if n, err := strconv.Atoi(v); err == nil {
+				if n <= 0 {
+					retryOpts.MaxRetries = -1 // explicit 0 or negative disables retries
+				} else {
+					retryOpts.MaxRetries = n
+				}
+			}
+		}
 	}
 
 	redactor := redact.Default

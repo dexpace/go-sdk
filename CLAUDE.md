@@ -92,7 +92,8 @@ go-sdk/
 ├── pagination/                # generic iter.Seq2 Pager
 ├── redact/                    # default-deny URL redactor (userinfo + query values)
 ├── instrumentation/           # tracing + metrics SPIs, no-op defaults, policies
-├── sse/  webhook/  serde/  config/   # placeholders (doc.go only)
+├── config/                    # layered override→env→default settings
+├── sse/  webhook/  serde/     # placeholders (doc.go only)
 ├── .golangci.yml  Makefile  .github/workflows/ci.yml
 └── CONTRIBUTING.md  CLAUDE.md  README.md  LICENSE
 ```

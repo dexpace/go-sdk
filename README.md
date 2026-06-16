@@ -57,10 +57,11 @@ standard library.
 | [`mediatype`](./mediatype) | Immutable media-type value with parsing and common constants. |
 | [`header`](./header) | Canonical HTTP header-name constants. |
 | [`pagination`](./pagination) | Generic token-pagination as `iter.Seq2` range-over-func iterators. |
+| [`config`](./config) | Layered override → environment → default settings resolver; non-failing typed getters. |
 | root [`dexpace`](.) | Umbrella `Client` wiring the default policy stack. |
 
 Reserved for upcoming work (placeholder packages today): `sse`, `webhook`,
-`serde`, `config`.
+`serde`.
 
 ### Pipeline order
 
@@ -94,6 +95,10 @@ wire a backend):
   in-flight requests via the instrumentation `Meter` SPI.
 - `WithRedactionAllowlist(params...)` — preserves the listed query-param values in
   redacted URLs (logs and traces); all other query values are redacted by default.
+- `WithConfig(cfg)` — sources defaults from `DEXPACE_*` environment variables —
+  `DEXPACE_USER_AGENT`, `DEXPACE_MAX_RETRIES` (0 or negative disables retries),
+  `DEXPACE_RETRY_BASE_DELAY`, `DEXPACE_HTTP_TIMEOUT` (default transport only) — for
+  settings not set explicitly; explicit options always win.
 
 URLs are redacted by default across logs, traces, and errors: userinfo is
 stripped and query values are redacted unless allowlisted with

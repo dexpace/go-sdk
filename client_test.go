@@ -11,11 +11,14 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	dexpace "github.com/dexpace/go-sdk"
+	"github.com/dexpace/go-sdk/config"
 	"github.com/dexpace/go-sdk/httperr"
 	"github.com/dexpace/go-sdk/instrumentation"
 	"github.com/dexpace/go-sdk/pipeline"
@@ -481,6 +484,88 @@ func TestWithRedactionAllowlistAppliesToLogging(t *testing.T) {
 	}
 }
 
+func TestWithConfigSetsUserAgentFromEnv(t *testing.T) {
+	t.Setenv("DEXPACE_USER_AGENT", "custom-agent/9")
+
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithConfig(config.New()),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if got := captured.Header.Get("User-Agent"); got != "custom-agent/9" {
+		t.Fatalf("User-Agent = %q, want custom-agent/9", got)
+	}
+}
+
+func TestExplicitUserAgentBeatsConfig(t *testing.T) {
+	t.Setenv("DEXPACE_USER_AGENT", "from-env")
+
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithConfig(config.New()),
+		dexpace.WithUserAgent("explicit/1"),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if got := captured.Header.Get("User-Agent"); got != "explicit/1" {
+		t.Fatalf("User-Agent = %q, want explicit/1 (explicit beats config)", got)
+	}
+}
+
+func TestWithConfigSetsRetriesFromEnv(t *testing.T) {
+	t.Setenv("DEXPACE_MAX_RETRIES", "2")
+	t.Setenv("DEXPACE_RETRY_BASE_DELAY", "1ns")
+
+	var calls int
+	c := dexpace.New(
+		dexpace.WithTransport(statusTransport(http.StatusServiceUnavailable, &calls)),
+		dexpace.WithConfig(config.New()),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if calls != 3 {
+		t.Fatalf("transport calls = %d, want 3", calls)
+	}
+}
+
+func TestWithConfigNilIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithConfig(nil),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if ua := captured.Header.Get("User-Agent"); ua == "" {
+		t.Fatal("expected the default User-Agent with WithConfig(nil)")
+	}
+}
+
 type capturingSpan struct{ attrs []instrumentation.Attr }
 
 func (s *capturingSpan) SetAttributes(a ...instrumentation.Attr) { s.attrs = append(s.attrs, a...) }
@@ -522,5 +607,48 @@ func TestWithRedactionAllowlistAppliesToTracing(t *testing.T) {
 	}
 	if !strings.Contains(urlFull, "token=REDACTED") || !strings.Contains(urlFull, "page=2") {
 		t.Fatalf("url.full = %q, want token redacted and page preserved", urlFull)
+	}
+}
+
+func TestWithConfigZeroMaxRetriesDisablesRetries(t *testing.T) {
+	t.Setenv("DEXPACE_MAX_RETRIES", "0")
+
+	var calls int
+	c := dexpace.New(
+		dexpace.WithTransport(statusTransport(http.StatusServiceUnavailable, &calls)),
+		dexpace.WithConfig(config.New()),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if calls != 1 {
+		t.Fatalf("transport calls = %d, want 1 (retries disabled by env)", calls)
+	}
+}
+
+func TestWithConfigAppliesHTTPTimeout(t *testing.T) {
+	t.Setenv("DEXPACE_HTTP_TIMEOUT", "30ms")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(300 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	// No WithTransport: the default transport is built, so the config timeout applies.
+	// Disable retries so the timeout error surfaces promptly.
+	c := dexpace.New(
+		dexpace.WithConfig(config.New()),
+		dexpace.WithRetry(retry.Options{MaxRetries: -1}),
+	)
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	resp, err := c.Do(req)
+	if err == nil {
+		_ = resp.Body.Close()
+		t.Fatal("expected a timeout error from the 30ms DEXPACE_HTTP_TIMEOUT")
 	}
 }
