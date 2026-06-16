@@ -186,3 +186,44 @@ func TestParseEarlyBreak(t *testing.T) {
 		t.Fatalf("consumed %d events, want 1 after break", count)
 	}
 }
+
+func TestParseDataFieldNoColon(t *testing.T) {
+	t.Parallel()
+
+	// A bare "data" line (no colon) is the field name with an empty value.
+	events := collectEvents(t, "data\n\n")
+	if len(events) != 1 || events[0].Data != "" {
+		t.Fatalf("events = %+v, want one event with empty Data", events)
+	}
+}
+
+func TestParseIDWithNULIgnored(t *testing.T) {
+	t.Parallel()
+
+	// The second id field contains a NUL and must be ignored, so the second
+	// event keeps the first id.
+	events := collectEvents(t, "id: abc\ndata: first\n\nid: x\x00y\ndata: second\n\n")
+	if len(events) != 2 {
+		t.Fatalf("got %d events, want 2", len(events))
+	}
+	if events[0].ID != "abc" || events[1].ID != "abc" {
+		t.Fatalf("IDs = %q, %q, want both abc (NUL id ignored)", events[0].ID, events[1].ID)
+	}
+}
+
+func TestParseRetryNotStickyAcrossEvents(t *testing.T) {
+	t.Parallel()
+
+	// retry applies to the event it appears on; the next event without a retry
+	// field has Retry == 0.
+	events := collectEvents(t, "retry: 1000\ndata: a\n\ndata: b\n\n")
+	if len(events) != 2 {
+		t.Fatalf("got %d events, want 2", len(events))
+	}
+	if events[0].Retry != 1000*time.Millisecond {
+		t.Fatalf("event[0].Retry = %v, want 1s", events[0].Retry)
+	}
+	if events[1].Retry != 0 {
+		t.Fatalf("event[1].Retry = %v, want 0 (retry not sticky)", events[1].Retry)
+	}
+}
