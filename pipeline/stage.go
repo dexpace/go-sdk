@@ -23,6 +23,8 @@ const (
 	StageRetry                           // retry pillar; wraps everything below
 	StageAuth                            // credential stamping / refresh
 	StageDate                            // Date header
+	StageTracing                         // span around each attempt
+	StageMetrics                         // request metrics around each attempt
 	StageLogging                         // innermost; logs the on-the-wire request
 )
 
