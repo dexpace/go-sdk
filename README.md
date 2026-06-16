@@ -56,7 +56,7 @@ standard library.
 | [`httperr`](./httperr) | `ResponseError` for non-success responses; buffers and rewinds the body. |
 | [`mediatype`](./mediatype) | Immutable media-type value with parsing and common constants. |
 | [`header`](./header) | Canonical HTTP header-name constants. |
-| [`pagination`](./pagination) | Generic token-pagination as `iter.Seq2` range-over-func iterators. |
+| [`pagination`](./pagination) | Generic pagination as `iter.Seq2` range-over-func iterators — cursor/token, page-number, and RFC 8288 Link-header strategies, with a `WithMaxPages` cap. |
 | [`config`](./config) | Layered override → environment → default settings resolver; non-failing typed getters. |
 | [`serde`](./serde) | Serialization seam (Marshaler/Unmarshaler) with a JSON default, plus Tristate for PATCH payloads. |
 | root [`dexpace`](.) | Umbrella `Client` wiring the default policy stack. |

@@ -95,3 +95,43 @@ func TestEarlyBreakStopsIteration(t *testing.T) {
 		t.Fatalf("fetch calls = %d, want 1 after early break", calls)
 	}
 }
+
+func TestWithMaxPagesCapsIteration(t *testing.T) {
+	t.Parallel()
+
+	fetch := func(_ context.Context, _ string) (pagination.Page[int], error) {
+		return pagination.Page[int]{Items: []int{1}, NextToken: "more"}, nil
+	}
+	pager := pagination.New(fetch, pagination.WithMaxPages(3))
+
+	pages := 0
+	for _, err := range pager.Pages(context.Background()) {
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		pages++
+	}
+	if pages != 3 {
+		t.Fatalf("pages = %d, want 3 (capped)", pages)
+	}
+}
+
+func TestWithMaxPagesAlsoCapsItems(t *testing.T) {
+	t.Parallel()
+
+	fetch := func(_ context.Context, _ string) (pagination.Page[int], error) {
+		return pagination.Page[int]{Items: []int{1, 2}, NextToken: "more"}, nil
+	}
+	pager := pagination.New(fetch, pagination.WithMaxPages(2))
+
+	count := 0
+	for _, err := range pager.Items(context.Background()) {
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		count++
+	}
+	if count != 4 {
+		t.Fatalf("items = %d, want 4 (2 pages capped)", count)
+	}
+}
