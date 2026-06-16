@@ -28,9 +28,9 @@ type streamConfig struct {
 	wait  func(ctx context.Context, d time.Duration) bool
 }
 
-// WithReconnectDelay sets the wait between reconnects. It defaults to three
-// seconds and is overridden by any server-sent retry value. A delay <= 0
-// reconnects immediately.
+// WithReconnectDelay sets the initial wait between reconnects (default three
+// seconds). A server-sent retry value overrides it for all subsequent reconnects,
+// matching browser EventSource semantics. A delay <= 0 reconnects immediately.
 func WithReconnectDelay(d time.Duration) StreamOption {
 	return func(c *streamConfig) { c.delay = d }
 }
@@ -41,9 +41,13 @@ func withWait(fn func(ctx context.Context, d time.Duration) bool) StreamOption {
 }
 
 // Stream yields events from a reconnecting SSE source. It calls connect, parses
-// events until the stream ends (EOF or a read error), waits the reconnection
-// delay, then reconnects with the most recent event id. A connect error is
-// delivered as the iterator error and ends the stream; cancel ctx to stop. The
+// events until the stream ends, waits the reconnection delay, then reconnects
+// with the most recent event id (so the server can resume via Last-Event-ID).
+//
+// A mid-stream read error (including an unexpected EOF or a line exceeding the
+// parser's buffer) triggers a transparent reconnect rather than surfacing the
+// error; the only error yielded to the caller is a connect error, which is
+// terminal. Cancel ctx to stop reconnecting on a persistently broken stream. The
 // iterator is single-pass.
 func Stream(ctx context.Context, connect ConnectFunc, opts ...StreamOption) iter.Seq2[Event, error] {
 	cfg := streamConfig{delay: defaultReconnectDelay, wait: realWait}

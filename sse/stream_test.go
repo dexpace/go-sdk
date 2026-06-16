@@ -138,6 +138,50 @@ type closeRecorder struct {
 
 func (c *closeRecorder) Close() error { c.closed = true; return nil }
 
+type erroringReader struct{ err error }
+
+func (r *erroringReader) Read([]byte) (int, error) { return 0, r.err }
+
+func TestStreamReconnectsOnMidStreamReadError(t *testing.T) {
+	t.Parallel()
+
+	readErr := errors.New("connection reset")
+	calls := 0
+	connect := func(_ context.Context, _ string) (io.ReadCloser, error) {
+		calls++
+		switch calls {
+		case 1:
+			// One event, then a non-EOF read error mid-stream.
+			return io.NopCloser(io.MultiReader(
+				strings.NewReader("data: a\n\n"),
+				&erroringReader{err: readErr},
+			)), nil
+		case 2:
+			return nopBody("data: b\n\n"), nil
+		default:
+			return nil, errors.New("stop")
+		}
+	}
+
+	var data []string
+	var gotErr error
+	for ev, err := range sse.Stream(context.Background(), connect, sse.WithReconnectDelay(0)) {
+		if err != nil {
+			gotErr = err
+			break
+		}
+		data = append(data, ev.Data)
+	}
+
+	if strings.Join(data, ",") != "a,b" {
+		t.Fatalf("data = %v, want [a b] (mid-stream read error should reconnect transparently)", data)
+	}
+	// The read error must NOT be surfaced; only the terminal connect error is.
+	if gotErr == nil || gotErr.Error() != "stop" {
+		t.Fatalf("err = %v, want \"stop\" (read error not surfaced)", gotErr)
+	}
+}
+
 func TestStreamConsumerBreakClosesReader(t *testing.T) {
 	t.Parallel()
 

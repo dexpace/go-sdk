@@ -13,6 +13,8 @@ import (
 )
 
 func TestStreamRetryOverridesDelay(t *testing.T) {
+	t.Parallel()
+
 	var recorded []time.Duration
 	wait := func(ctx context.Context, d time.Duration) bool {
 		recorded = append(recorded, d)
