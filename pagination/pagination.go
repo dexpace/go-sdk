@@ -1,8 +1,6 @@
 // Copyright (c) 2026 dexpace and Omar Aljarrah.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-// Package pagination provides a generic, transport-agnostic helper for consuming
-// token-paginated API responses as Go range-over-func iterators.
 package pagination
 
 import (
