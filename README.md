@@ -71,7 +71,7 @@ standard library.
 `dexpace.New` assembles policies outermost-first:
 
 ```
-user-agent → idempotency → retry → auth → date → [tracing] → [metrics] → logging → custom → transport
+[errors] → client-identity → idempotency → retry → auth → [date] → [tracing] → [metrics] → logging → custom → transport
 ```
 
 Retry wraps the inner policies, so auth re-runs (and may refresh its token) on
@@ -96,20 +96,25 @@ wire a backend):
   via the instrumentation `Tracer` SPI and injects a W3C `traceparent` header.
 - `WithMetrics(meter)` — installs a metrics policy recording request duration and
   in-flight requests via the instrumentation `Meter` SPI.
-- `WithTokenCache(cache)` — shares a bearer-token cache (an `auth.TokenCache`, in-memory
-  by default) across clients so a cached token is reused.
-- `WithBasicAuth(username, password)` — authenticates requests with HTTP Basic auth (HTTPS-only).
-- `WithAPIKey(header, key)` — sets an API-key header on every request (HTTPS-only).
 - `WithRedactionAllowlist(params...)` — preserves the listed query-param values in
   redacted URLs (logs and traces); all other query values are redacted by default.
-- `WithConfig(cfg)` — sources defaults from `DEXPACE_*` environment variables —
-  `DEXPACE_USER_AGENT`, `DEXPACE_MAX_RETRIES` (0 or negative disables retries),
-  `DEXPACE_RETRY_BASE_DELAY`, `DEXPACE_HTTP_TIMEOUT` (default transport only) — for
-  settings not set explicitly; explicit options always win.
 
 URLs are redacted by default across logs, traces, and errors: userinfo is
 stripped and query values are redacted unless allowlisted with
 `WithRedactionAllowlist`.
+
+### Authentication and configuration
+
+- `WithCredential(cred, scopes...)` — authenticates requests with bearer tokens
+  from a `TokenCredential` (HTTPS-only, cached).
+- `WithTokenCache(cache)` — shares a bearer-token cache (an `auth.TokenCache`, in-memory
+  by default) across clients so a cached token is reused.
+- `WithBasicAuth(username, password)` — authenticates requests with HTTP Basic auth (HTTPS-only).
+- `WithAPIKey(header, key)` — sets an API-key header on every request (HTTPS-only).
+- `WithConfig(cfg)` — sources defaults from `DEXPACE_*` environment variables —
+  `DEXPACE_USER_AGENT`, `DEXPACE_MAX_RETRIES` (0 or negative disables retries),
+  `DEXPACE_RETRY_BASE_DELAY`, `DEXPACE_HTTP_TIMEOUT` (default transport only) — for
+  settings not set explicitly; explicit options always win.
 
 ## Requirements
 
