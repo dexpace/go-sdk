@@ -630,6 +630,47 @@ func TestWithConfigZeroMaxRetriesDisablesRetries(t *testing.T) {
 	}
 }
 
+func TestWithBasicAuth(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithBasicAuth("alice", "s3cr3t"),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	u, p, ok := captured.BasicAuth()
+	if !ok || u != "alice" || p != "s3cr3t" {
+		t.Fatalf("BasicAuth = (%q,%q,%v), want alice/s3cr3t/true", u, p, ok)
+	}
+}
+
+func TestWithAPIKey(t *testing.T) {
+	t.Parallel()
+
+	var captured *http.Request
+	c := dexpace.New(
+		dexpace.WithTransport(captureTransport(&captured)),
+		dexpace.WithAPIKey("X-API-Key", "secret-key"),
+	)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	if got := captured.Header.Get("X-API-Key"); got != "secret-key" {
+		t.Fatalf("X-API-Key = %q, want secret-key", got)
+	}
+}
+
 func TestWithConfigAppliesHTTPTimeout(t *testing.T) {
 	t.Setenv("DEXPACE_HTTP_TIMEOUT", "30ms")
 

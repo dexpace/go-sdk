@@ -18,11 +18,19 @@ import (
 // given; later options override earlier ones for the same setting.
 type Option func(*config)
 
+type apiKeyConfig struct {
+	header string
+	key    string
+	set    bool
+}
+
 type config struct {
 	transport  pipeline.Transporter
 	retry      *retry.Options
 	credential auth.TokenCredential
 	scopes     []string
+	basicAuth  *auth.BasicCredential
+	apiKey     apiKeyConfig
 	logger     *slog.Logger
 	logging    bool
 	date       bool
@@ -61,6 +69,23 @@ func WithCredential(cred auth.TokenCredential, scopes ...string) Option {
 	return func(c *config) {
 		c.credential = cred
 		c.scopes = scopes
+	}
+}
+
+// WithBasicAuth authenticates requests with HTTP Basic auth. Like all credential
+// policies it requires HTTPS. If multiple auth options are set, the precedence is
+// WithCredential, then WithBasicAuth, then WithAPIKey.
+func WithBasicAuth(username, password string) Option {
+	return func(c *config) {
+		c.basicAuth = &auth.BasicCredential{Username: username, Password: password}
+	}
+}
+
+// WithAPIKey authenticates requests by setting header to key (HTTPS-only). See
+// WithBasicAuth for the precedence when multiple auth options are set.
+func WithAPIKey(header, key string) Option {
+	return func(c *config) {
+		c.apiKey = apiKeyConfig{header: header, key: key, set: true}
 	}
 }
 
