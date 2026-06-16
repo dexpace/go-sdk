@@ -19,6 +19,10 @@
 // vendor-neutral interfaces (no-op by default). WithRedactionAllowlist controls
 // which query-param values survive redaction in logs and traces.
 //
+// WithConfig sources client defaults (User-Agent, retry settings, transport
+// timeout) from the environment via the config package, for any setting not set
+// explicitly.
+//
 //	client := dexpace.New(
 //		dexpace.WithRetry(retry.Options{MaxRetries: 3}),
 //		dexpace.WithCredential(cred),
