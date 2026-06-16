@@ -51,6 +51,8 @@ standard library.
 | [`idempotency`](./idempotency) | Idempotency-key policy (default-on for POST). |
 | [`auth`](./auth) | `TokenCredential` contract and `BearerTokenPolicy` (HTTPS-only, cached). |
 | [`logging`](./logging) | Structured request/response logging via `log/slog`, with URL redaction. |
+| [`instrumentation`](./instrumentation) | Vendor-neutral `Tracer`/`Meter` SPIs with no-op defaults, plus tracing and metrics policies. |
+| [`redact`](./redact) | Default-deny URL redactor (strips userinfo, redacts query values) shared by logs, traces, and errors. |
 | [`httperr`](./httperr) | `ResponseError` for non-success responses; buffers and rewinds the body. |
 | [`mediatype`](./mediatype) | Immutable media-type value with parsing and common constants. |
 | [`header`](./header) | Canonical HTTP header-name constants. |
@@ -58,7 +60,7 @@ standard library.
 | root [`dexpace`](.) | Umbrella `Client` wiring the default policy stack. |
 
 Reserved for upcoming work (placeholder packages today): `sse`, `webhook`,
-`serde`, `config`, `instrumentation`.
+`serde`, `config`.
 
 ### Pipeline order
 
@@ -79,6 +81,23 @@ By default `Client.Do` follows `net/http` semantics, where a non-2xx status is
 not an error. `WithErrors` opts into the typed error model: `Client.Do` then
 returns a `*httperr.ResponseError` for non-2xx responses and a
 `*httperr.TransportError` for transport failures. It is off by default.
+
+### Observability
+
+Tracing and metrics are opt-in and route through the `instrumentation`
+package's vendor-neutral SPIs (no-op by default, so nothing is emitted until you
+wire a backend):
+
+- `WithTracing(tracer)` — installs a tracing policy that emits a span per request
+  via the instrumentation `Tracer` SPI and injects a W3C `traceparent` header.
+- `WithMetrics(meter)` — installs a metrics policy recording request duration and
+  in-flight requests via the instrumentation `Meter` SPI.
+- `WithRedactionAllowlist(params...)` — preserves the listed query-param values in
+  redacted URLs (logs and traces); all other query values are redacted by default.
+
+URLs are redacted by default across logs, traces, and errors: userinfo is
+stripped and query values are redacted unless allowlisted with
+`WithRedactionAllowlist`.
 
 ## Requirements
 

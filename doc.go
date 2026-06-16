@@ -14,6 +14,11 @@
 // Enable the typed error model with WithErrors to receive a *httperr.ResponseError
 // for non-2xx responses and a *httperr.TransportError for transport failures.
 //
+// Tracing and metrics are opt-in: WithTracing and WithMetrics install policies
+// that emit spans and request metrics through the instrumentation package's
+// vendor-neutral interfaces (no-op by default). WithRedactionAllowlist controls
+// which query-param values survive redaction in logs and traces.
+//
 //	client := dexpace.New(
 //		dexpace.WithRetry(retry.Options{MaxRetries: 3}),
 //		dexpace.WithCredential(cred),
