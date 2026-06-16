@@ -51,3 +51,24 @@ func TestConditionsApplyEmptyIsNoOp(t *testing.T) {
 		}
 	}
 }
+
+func TestConditionsApplyIfMatchAndUnmodified(t *testing.T) {
+	t.Parallel()
+
+	ts := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	req, _ := http.NewRequest(http.MethodGet, "https://api.example.test/", nil)
+	conditions.Conditions{
+		IfMatch:           []conditions.ETag{conditions.NewETag("v1")},
+		IfUnmodifiedSince: ts,
+	}.Apply(req)
+
+	if got := req.Header.Get("If-Match"); got != `"v1"` {
+		t.Fatalf("If-Match = %q, want \"v1\"", got)
+	}
+	if got := req.Header.Get("If-Unmodified-Since"); got != ts.Format(http.TimeFormat) {
+		t.Fatalf("If-Unmodified-Since = %q, want %q", got, ts.Format(http.TimeFormat))
+	}
+	if req.Header.Get("If-None-Match") != "" {
+		t.Fatal("If-None-Match should be unset")
+	}
+}
