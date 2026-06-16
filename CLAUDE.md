@@ -97,6 +97,7 @@ go-sdk/
 ├── serde/                     # Marshaler/Unmarshaler seam + JSON default + Tristate
 ├── sse/                       # Server-Sent Events (WHATWG) parser
 ├── webhook/                   # inbound signature verification (HMAC + timestamp)
+├── formdata/                  # multipart/form-data body builder
 ├── .golangci.yml  Makefile  .github/workflows/ci.yml
 └── CONTRIBUTING.md  CLAUDE.md  README.md  LICENSE
 ```

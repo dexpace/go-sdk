@@ -62,5 +62,8 @@
 // The webhook package verifies inbound webhook signatures (constant-time HMAC
 // with a timestamp-tolerance window).
 //
+// The formdata package builds replayable multipart/form-data request bodies for
+// file uploads.
+//
 // All of core depends only on the Go standard library.
 package dexpace
