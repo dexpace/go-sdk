@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dexpace/go-sdk/auth"
+	cfgpkg "github.com/dexpace/go-sdk/config"
 	"github.com/dexpace/go-sdk/header"
 	"github.com/dexpace/go-sdk/httperr"
 	"github.com/dexpace/go-sdk/idempotency"
@@ -52,17 +53,32 @@ func New(opts ...Option) *Client {
 
 	t := cfg.transport
 	if t == nil {
-		t = transport.New()
+		var topts []transport.Option
+		if cfg.cfgSource != nil {
+			if d := cfg.cfgSource.GetDuration(cfgpkg.EnvHTTPTimeout, 0); d > 0 {
+				topts = append(topts, transport.WithTimeout(d))
+			}
+		}
+		t = transport.New(topts...)
 	}
 
 	ua := cfg.userAgent
 	if ua == "" {
 		ua = userAgent
+		if cfg.cfgSource != nil {
+			ua = cfg.cfgSource.GetString(cfgpkg.EnvUserAgent, userAgent)
+		}
 	}
 
 	retryOpts := retry.Options{}
-	if cfg.retry != nil {
+	switch {
+	case cfg.retry != nil:
 		retryOpts = *cfg.retry
+	case cfg.cfgSource != nil:
+		retryOpts = retry.Options{
+			MaxRetries: cfg.cfgSource.GetInt(cfgpkg.EnvMaxRetries, 0),
+			BaseDelay:  cfg.cfgSource.GetDuration(cfgpkg.EnvRetryBaseDelay, 0),
+		}
 	}
 
 	redactor := redact.Default

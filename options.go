@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/dexpace/go-sdk/auth"
+	cfgpkg "github.com/dexpace/go-sdk/config"
 	"github.com/dexpace/go-sdk/idempotency"
 	"github.com/dexpace/go-sdk/instrumentation"
 	"github.com/dexpace/go-sdk/pipeline"
@@ -37,6 +38,8 @@ type config struct {
 	tracer      instrumentation.Tracer
 	meter       instrumentation.Meter
 	redactAllow []string
+
+	cfgSource *cfgpkg.Config
 }
 
 // WithTransport sets the terminal transport. When unset, the default net/http
@@ -131,6 +134,15 @@ func WithTracing(tracer instrumentation.Tracer) Option {
 // by default.
 func WithMetrics(meter instrumentation.Meter) Option {
 	return func(c *config) { c.meter = meter }
+}
+
+// WithConfig supplies client defaults from cfg for any setting the caller did not
+// set explicitly: the User-Agent (DEXPACE_USER_AGENT), retry count and base delay
+// (DEXPACE_MAX_RETRIES, DEXPACE_RETRY_BASE_DELAY), and the default-transport
+// timeout (DEXPACE_HTTP_TIMEOUT). Explicit options always win, regardless of
+// option order. A nil cfg is a no-op.
+func WithConfig(cfg *cfgpkg.Config) Option {
+	return func(c *config) { c.cfgSource = cfg }
 }
 
 // WithRedactionAllowlist preserves the values of the named query parameters in
