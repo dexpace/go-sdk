@@ -44,7 +44,11 @@ type Verifier struct {
 type Option func(*Verifier)
 
 // WithTolerance sets the allowed clock skew for [Verifier.VerifyTimestamp]. The
-// default is five minutes; a value <= 0 disables the timestamp check.
+// default is five minutes.
+//
+// WARNING: a value <= 0 DISABLES the timestamp check entirely (it does not make
+// it stricter), so the verifier will accept any timestamp. Use a positive
+// duration to keep replay protection.
 func WithTolerance(d time.Duration) Option {
 	return func(v *Verifier) { v.tolerance = d }
 }
@@ -62,14 +66,7 @@ func NewVerifier(secret []byte, opts ...Option) *Verifier {
 // payload, compared in constant time. It returns nil on a match and
 // ErrSignatureMismatch otherwise, including when sigHex is not valid hex.
 func (v *Verifier) Verify(payload []byte, sigHex string) error {
-	provided, err := hex.DecodeString(sigHex)
-	if err != nil {
-		return ErrSignatureMismatch
-	}
-	if !hmac.Equal(provided, mac(v.secret, payload)) {
-		return ErrSignatureMismatch
-	}
-	return nil
+	return verifyMAC(mac(v.secret, payload), sigHex)
 }
 
 // VerifyTimestamp verifies the common scheme in which the signed payload is the
@@ -86,6 +83,22 @@ func (v *Verifier) VerifyTimestamp(body []byte, timestamp, now time.Time, sigHex
 			return ErrTimestampOutsideTolerance
 		}
 	}
-	signed := strconv.FormatInt(timestamp.Unix(), 10) + "." + string(body)
-	return v.Verify([]byte(signed), sigHex)
+	h := hmac.New(sha256.New, v.secret)
+	h.Write([]byte(strconv.FormatInt(timestamp.Unix(), 10)))
+	h.Write([]byte{'.'})
+	h.Write(body)
+	return verifyMAC(h.Sum(nil), sigHex)
+}
+
+// verifyMAC compares the hex signature sigHex against the already-computed MAC in
+// constant time. Invalid hex maps to ErrSignatureMismatch (no leak).
+func verifyMAC(expected []byte, sigHex string) error {
+	provided, err := hex.DecodeString(sigHex)
+	if err != nil {
+		return ErrSignatureMismatch
+	}
+	if !hmac.Equal(provided, expected) {
+		return ErrSignatureMismatch
+	}
+	return nil
 }

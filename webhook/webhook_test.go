@@ -5,6 +5,7 @@ package webhook_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -103,5 +104,29 @@ func TestVerifyTimestampSignatureMismatch(t *testing.T) {
 	v := webhook.NewVerifier(secret)
 	if err := v.VerifyTimestamp([]byte("payload"), ts, ts, sig); !errors.Is(err, webhook.ErrSignatureMismatch) {
 		t.Fatalf("err = %v, want ErrSignatureMismatch", err)
+	}
+}
+
+func TestSignKnownVector(t *testing.T) {
+	t.Parallel()
+
+	// Canonical HMAC-SHA256 test vector:
+	// HMAC-SHA256("key", "The quick brown fox jumps over the lazy dog").
+	const want = "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+	got := webhook.Sign([]byte("key"), []byte("The quick brown fox jumps over the lazy dog"))
+	if got != want {
+		t.Fatalf("Sign known vector = %q, want %q", got, want)
+	}
+}
+
+func TestSignOutputFormat(t *testing.T) {
+	t.Parallel()
+
+	sig := webhook.Sign([]byte("secret"), []byte("payload"))
+	if len(sig) != 64 {
+		t.Fatalf("Sign length = %d, want 64 hex chars", len(sig))
+	}
+	if sig != strings.ToLower(sig) {
+		t.Fatalf("Sign output %q is not lowercase hex", sig)
 	}
 }
