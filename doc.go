@@ -56,6 +56,9 @@
 // JSON default) and Tristate for JSON PATCH payloads; httperr.ResponseError.DecodeInto
 // decodes an error body into a typed value.
 //
+// The jsonl package decodes streaming JSON Lines (NDJSON) responses into typed
+// values.
+//
 // The sse package parses Server-Sent Events (text/event-stream) into a
 // range-over-func iterator of events, with a reconnecting Stream that replays the
 // Last-Event-ID.
