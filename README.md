@@ -58,10 +58,10 @@ standard library.
 | [`header`](./header) | Canonical HTTP header-name constants. |
 | [`pagination`](./pagination) | Generic token-pagination as `iter.Seq2` range-over-func iterators. |
 | [`config`](./config) | Layered override → environment → default settings resolver; non-failing typed getters. |
+| [`serde`](./serde) | Serialization seam (Marshaler/Unmarshaler) with a JSON default, plus Tristate for PATCH payloads. |
 | root [`dexpace`](.) | Umbrella `Client` wiring the default policy stack. |
 
-Reserved for upcoming work (placeholder packages today): `sse`, `webhook`,
-`serde`.
+Reserved for upcoming work (placeholder packages today): `sse`, `webhook`.
 
 ### Pipeline order
 

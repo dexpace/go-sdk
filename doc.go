@@ -46,5 +46,9 @@
 //   - [github.com/dexpace/go-sdk/mediatype], [github.com/dexpace/go-sdk/header],
 //     [github.com/dexpace/go-sdk/pagination] — HTTP value helpers.
 //
+// The serde package provides a serialization seam (Marshaler/Unmarshaler with a
+// JSON default) and Tristate for JSON PATCH payloads; httperr.ResponseError.DecodeInto
+// decodes an error body into a typed value.
+//
 // All of core depends only on the Go standard library.
 package dexpace
